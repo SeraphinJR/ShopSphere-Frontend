@@ -9,5 +9,5 @@ package pages;
  * @author VICTUS
  */
 public class AuthManager {
-    public static String Token;
+    public static String Token="eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJyYkBnbWFpbC5jb20iLCJpYXQiOjE3NTkzMjIxODMsImV4cCI6MTc1OTMyNTc4M30.rlOKShulIB4EDHHQi26jDaN4bBOYQIm-ZpzPTuWMGhg";
 }

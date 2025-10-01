@@ -24,6 +24,7 @@ public class HomePage extends javax.swing.JFrame {
     private javax.swing.JButton cartButton;
     private javax.swing.JButton searchButton;
     private javax.swing.JTextField searchField;
+    private javax.swing.JButton clearButton;
     private javax.swing.JPanel productPanel;
     private javax.swing.JScrollPane productScrollPane;
     private javax.swing.JPanel topPanel;
@@ -154,8 +155,43 @@ private JPanel createProductCard(String id, String name, String price, String im
     JButton addBtn = new JButton("Add to cart");
     addBtn.setPreferredSize(new Dimension(120, 28));
     addBtn.addActionListener(e -> {
-        // TODO: hook cart logic
-        JOptionPane.showMessageDialog(this, name + " added to cart.");
+        try{
+            URL url=new URL("http://localhost:8080/cart");
+            HttpURLConnection conn=(HttpURLConnection) url.openConnection();
+            
+            conn.setRequestMethod("POST");
+            conn.setRequestProperty("Content-Type","application/json");
+            conn.setRequestProperty("Authorization","Bearer "+"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJyYkBnbWFpbC5jb20iLCJpYXQiOjE3NTkzMjA5NzIsImV4cCI6MTc1OTMyNDU3Mn0.Qh9ZV7VlMXuoGZEqg1E-i6uwk4Jk09w4Wd9C8tfcCew");
+            conn.setDoOutput(true);
+            
+            JSONObject requestBody=new JSONObject();
+            requestBody.put("productId",id);
+            requestBody.put("quantity","1");
+            
+            try (java.io.OutputStream os = conn.getOutputStream()) {
+                byte[] input = requestBody.toString().getBytes("utf-8");
+                os.write(input, 0, input.length);
+            }
+            int responseCode = conn.getResponseCode();
+            if (responseCode >= 200 && responseCode < 300) {
+                JOptionPane.showMessageDialog(HomePage.this, name + " added to cart.");
+            } else {
+                BufferedReader br = new BufferedReader(new InputStreamReader(conn.getErrorStream()));
+                StringBuilder errResp = new StringBuilder();
+                String line;
+                while ((line = br.readLine()) != null) errResp.append(line);
+                br.close();
+
+                JOptionPane.showMessageDialog(this, "Failed to add to cart: " + errResp);
+            }
+
+            conn.disconnect();
+        
+        }catch(Exception err){
+            err.printStackTrace();
+            JOptionPane.showMessageDialog(this, "Error: " + err.getMessage());
+
+        }
     });
 
     info.add(topInfo, BorderLayout.NORTH);
@@ -202,6 +238,36 @@ private void searchProducts(java.awt.event.ActionEvent evt) {
     }
 }
 
+private void clearSearch(java.awt.event.ActionEvent evt) {
+    searchField.setText(""); // clear text
+    try {
+        // reload all products (no query param)
+        URL url = new URL("http://localhost:8080/products");
+        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        conn.setRequestMethod("GET");
+        conn.setRequestProperty("Content-Type", "application/json");
+
+        int responseCode = conn.getResponseCode();
+        if (responseCode >= 200 && responseCode < 300) {
+            BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+            StringBuilder response = new StringBuilder();
+            String line;
+            while ((line = in.readLine()) != null) {
+                response.append(line);
+            }
+            in.close();
+
+            JSONArray productsArray = new JSONArray(response.toString());
+            displayProducts(productsArray);
+        } else {
+            System.out.println("Failed to load products. Response code: " + responseCode);
+        }
+    } catch (Exception e) {
+        e.printStackTrace();
+    }
+}
+
+
 private void displayProducts(JSONArray productsArray) {
     productPanel.removeAll(); // Clear old products
     for (int i = 0; i < productsArray.length(); i++) {
@@ -232,6 +298,7 @@ private void displayProducts(JSONArray productsArray) {
         topPanel = new javax.swing.JPanel();
         searchField = new javax.swing.JTextField();
         searchButton = new javax.swing.JButton();
+        clearButton = new javax.swing.JButton();
         cartButton = new javax.swing.JButton();
         productScrollPane = new javax.swing.JScrollPane();
         productPanel = new javax.swing.JPanel();
@@ -260,7 +327,14 @@ private void displayProducts(JSONArray productsArray) {
                 searchProducts(evt);  // call your real search function
             }
         });
-
+        
+        clearButton.setText("Clear");
+        clearButton.setFont(new java.awt.Font("Segoe UI", 0, 14));
+        clearButton.addActionListener(new java.awt.event.ActionListener() {
+            public void actionPerformed(java.awt.event.ActionEvent evt) {
+                clearSearch(evt);
+            }
+        });
 
         cartButton.setText("Cart (0)");
         cartButton.setFont(new java.awt.Font("Segoe UI", 0, 14));
@@ -286,6 +360,8 @@ private void displayProducts(JSONArray productsArray) {
                 .addComponent(searchField, javax.swing.GroupLayout.DEFAULT_SIZE, 760, Short.MAX_VALUE)
                 .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.UNRELATED)
                 .addComponent(searchButton, javax.swing.GroupLayout.PREFERRED_SIZE, 100, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addGap(12,12,12)
+                .addComponent(clearButton, javax.swing.GroupLayout.PREFERRED_SIZE, 100, javax.swing.GroupLayout.PREFERRED_SIZE)
                 .addGap(12, 12, 12)
                 .addComponent(cartButton, javax.swing.GroupLayout.PREFERRED_SIZE, 110, javax.swing.GroupLayout.PREFERRED_SIZE))
         );
@@ -296,8 +372,10 @@ private void displayProducts(JSONArray productsArray) {
                 .addGroup(topPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
                     .addComponent(searchField, javax.swing.GroupLayout.PREFERRED_SIZE, 34, javax.swing.GroupLayout.PREFERRED_SIZE)
                     .addComponent(searchButton, javax.swing.GroupLayout.PREFERRED_SIZE, 34, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(clearButton, javax.swing.GroupLayout.PREFERRED_SIZE, 34, javax.swing.GroupLayout.PREFERRED_SIZE)
                     .addComponent(cartButton, javax.swing.GroupLayout.PREFERRED_SIZE, 34, javax.swing.GroupLayout.PREFERRED_SIZE)))
         );
+        topPanel.add(clearButton);
 
         // Product panel inside scroll pane
         productPanel.setLayout(new java.awt.GridLayout(0, 3, 16, 16)); // 3 columns, variable rows
