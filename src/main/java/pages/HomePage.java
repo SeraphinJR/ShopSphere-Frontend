@@ -2,9 +2,6 @@ package pages;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.*;
-import java.util.List;
-import java.util.ArrayList;
 
 import java.io.InputStreamReader;
 import java.io.BufferedReader;
@@ -161,7 +158,7 @@ private JPanel createProductCard(String id, String name, String price, String im
             
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Content-Type","application/json");
-            conn.setRequestProperty("Authorization","Bearer "+"eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJyYkBnbWFpbC5jb20iLCJpYXQiOjE3NTkzMjA5NzIsImV4cCI6MTc1OTMyNDU3Mn0.Qh9ZV7VlMXuoGZEqg1E-i6uwk4Jk09w4Wd9C8tfcCew");
+            conn.setRequestProperty("Authorization","Bearer "+AuthManager.Token);
             conn.setDoOutput(true);
             
             JSONObject requestBody=new JSONObject();
@@ -336,7 +333,7 @@ private void displayProducts(JSONArray productsArray) {
             }
         });
 
-        cartButton.setText("Cart (0)");
+        cartButton.setText("Cart");
         cartButton.setFont(new java.awt.Font("Segoe UI", 0, 14));
         cartButton.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
@@ -412,7 +409,8 @@ private void displayProducts(JSONArray productsArray) {
 
     private void onCart(java.awt.event.ActionEvent evt) {
         // TODO: open cart window or navigate to cart page
-        JOptionPane.showMessageDialog(this, "Open Cart (not implemented)");
+        new CartPage();
+        this.dispose();
     }
     
     
