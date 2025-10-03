@@ -11,11 +11,12 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import javax.imageio.ImageIO;
 import java.awt.Image;
+import model.CartModel;
 /**
  * HomePage - ShopSphere
  * NetBeans GUI Builder style JFrame with initComponents().
  */
-public class HomePage extends javax.swing.JFrame {
+public class HomePage extends JPanel {
 
     // Variables declaration - do not modify
     private javax.swing.JButton cartButton;
@@ -30,7 +31,11 @@ public class HomePage extends javax.swing.JFrame {
     /**
      * Creates new form HomePage
      */
-    public HomePage() {
+    private MainFrame parent;
+    private final CartModel cartModel;
+    public HomePage(MainFrame parent,CartModel cartModel) {
+        this.cartModel=cartModel;
+        this.parent=parent;
         initComponents();
         // Assuming you have a JScrollPane named scrollPaneProducts
         productScrollPane.getVerticalScrollBar().setUnitIncrement(20); // default is ~1-5, increase to speed up
@@ -39,7 +44,6 @@ public class HomePage extends javax.swing.JFrame {
 
         // enforce size and center
         setSize(1000, 600);
-        setLocationRelativeTo(null);
 
         // populate some sample products (replace with real data)
         populateProducts();
@@ -159,6 +163,7 @@ private JPanel createProductCard(String id, String name, String price, String im
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Content-Type","application/json");
             conn.setRequestProperty("Authorization","Bearer "+AuthManager.Token);
+            conn.setRequestProperty("Refresh-Token",AuthManager.Refresh);
             conn.setDoOutput(true);
             
             JSONObject requestBody=new JSONObject();
@@ -171,7 +176,11 @@ private JPanel createProductCard(String id, String name, String price, String im
             }
             int responseCode = conn.getResponseCode();
             if (responseCode >= 200 && responseCode < 300) {
+                JSONObject prod=new JSONObject();
+                prod.put("productId",id);
+                prod.put("quantity",1);
                 JOptionPane.showMessageDialog(HomePage.this, name + " added to cart.");
+                cartModel.addItem(prod);
             } else {
                 BufferedReader br = new BufferedReader(new InputStreamReader(conn.getErrorStream()));
                 StringBuilder errResp = new StringBuilder();
@@ -275,7 +284,7 @@ private void displayProducts(JSONArray productsArray) {
         String imagePath = prod.getString("image"); // could be URL or local path
         boolean isUrl = imagePath.startsWith("http");
 
-        JPanel card = createProductCard(id, name, price, imagePath, isUrl);
+        JPanel card = createProductCard(id, name, price, imagePath, true);
         productPanel.add(card);
     }
     productPanel.revalidate();
@@ -300,8 +309,6 @@ private void displayProducts(JSONArray productsArray) {
         productScrollPane = new javax.swing.JScrollPane();
         productPanel = new javax.swing.JPanel();
 
-        setDefaultCloseOperation(javax.swing.WindowConstants.EXIT_ON_CLOSE);
-        setTitle("ShopSphere - Home");
         setBackground(new java.awt.Color(250, 250, 250));
         setPreferredSize(new java.awt.Dimension(1000, 600));
 
@@ -382,8 +389,8 @@ private void displayProducts(JSONArray productsArray) {
         productScrollPane.setViewportView(productPanel);
 
         // Main layout for the frame (GroupLayout)
-        javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
-        getContentPane().setLayout(layout);
+        javax.swing.GroupLayout layout = new javax.swing.GroupLayout(this);
+        this.setLayout(layout);
         layout.setHorizontalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
             .addComponent(topPanel, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
@@ -397,7 +404,8 @@ private void displayProducts(JSONArray productsArray) {
                 .addComponent(productScrollPane, javax.swing.GroupLayout.DEFAULT_SIZE, 520, Short.MAX_VALUE))
         );
 
-        pack();
+        this.revalidate();
+        this.repaint();
     } // </editor-fold>
 
     // --- Event handlers --------------------------------------------------
@@ -409,8 +417,7 @@ private void displayProducts(JSONArray productsArray) {
 
     private void onCart(java.awt.event.ActionEvent evt) {
         // TODO: open cart window or navigate to cart page
-        new CartPage();
-        this.dispose();
+        parent.showPage("CART");
     }
     
     
@@ -420,19 +427,5 @@ private void displayProducts(JSONArray productsArray) {
     /**
      * Main method for standalone testing.
      */
-    public static void main(String args[]) {
-        /* Set the Nimbus look and feel */
-        try {
-            for (javax.swing.UIManager.LookAndFeelInfo info : javax.swing.UIManager.getInstalledLookAndFeels()) {
-                if ("Nimbus".equals(info.getName())) {
-                    javax.swing.UIManager.setLookAndFeel(info.getClassName());
-                    break;
-                }
-            }
-        } catch (Exception ex) {
-            // ignore and continue with default
-        }
-
-        java.awt.EventQueue.invokeLater(() -> new HomePage());
-    }
+    
 }

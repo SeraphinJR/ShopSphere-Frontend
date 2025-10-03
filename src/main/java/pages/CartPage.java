@@ -9,11 +9,12 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.*;
 import org.json.*;
+import model.CartModel;
 
 /**
  * CartPage - displays user's cart, allows quantity changes and checkout.
  */
-public class CartPage extends javax.swing.JFrame {
+public class CartPage extends JPanel {
 
     // UI components (declared as fields for NetBeans-style)
     private javax.swing.JPanel topPanel;
@@ -28,12 +29,19 @@ public class CartPage extends javax.swing.JFrame {
     // Internal model: store items as JSONObject entries returned by backend
     // each item expected to have at least: productId (int or string), name, price (number), image (string), quantity (int)
     private java.util.List<JSONObject> cartItems = new ArrayList<>();
-
-    public CartPage() {
+    private MainFrame parent;
+    private final CartModel cartModel;
+    public CartPage(MainFrame parent,CartModel cartModel) {
+        this.parent=parent;
+        this.cartModel=cartModel;
         initComponents();
-
+        
+        cartModel.addChangeListener(v->{
+            rebuildItemsUI();
+            recalcTotal();
+        });
+        
         setSize(900, 600);
-        setLocationRelativeTo(null);
 
         // speed up scroll
         itemsScrollPane.getVerticalScrollBar().setUnitIncrement(24);
@@ -57,6 +65,7 @@ public class CartPage extends javax.swing.JFrame {
                 String token = AuthManager.Token; // assume AuthManager exists
                 if (token != null && !token.isEmpty()) {
                     conn.setRequestProperty("Authorization", "Bearer " + token);
+                    conn.setRequestProperty("Refresh-Token", AuthManager.Refresh);
                 }
 
                 int rc = conn.getResponseCode();
@@ -81,9 +90,9 @@ public class CartPage extends javax.swing.JFrame {
                         }
                     }
 
-                    cartItems.clear();
+                    cartModel.clear();
                     for (int i = 0; i < itemsArray.length(); i++) {
-                        cartItems.add(itemsArray.getJSONObject(i));
+                        cartModel.addItem(itemsArray.getJSONObject(i));
                     }
 
                     SwingUtilities.invokeLater(() -> {
@@ -118,7 +127,7 @@ public class CartPage extends javax.swing.JFrame {
         itemsPanel.removeAll();
         itemsPanel.setLayout(new BoxLayout(itemsPanel, BoxLayout.Y_AXIS));
 
-        for (JSONObject item : cartItems) {
+        for (JSONObject item : cartModel.getItems()) {
             JPanel card = makeCartItemCard(item);
             itemsPanel.add(card);
             itemsPanel.add(Box.createRigidArea(new Dimension(0, 8)));
@@ -185,6 +194,7 @@ public class CartPage extends javax.swing.JFrame {
             conn.setRequestMethod("GET");
             conn.setRequestProperty("Accept","application/json");
             conn.setRequestProperty("Authorization", "Bearer "+AuthManager.Token);
+            conn.setRequestProperty("Refresh-Token", AuthManager.Refresh);
             
             int rc=conn.getResponseCode();
             if (rc>=200&&rc<300){
@@ -203,11 +213,11 @@ public class CartPage extends javax.swing.JFrame {
         }catch(Exception e){
         System.out.print("Error:"+e);}
 
-        String name = prod.getString("name");
+        String name = prod!=null?prod.getString("name"):"Unknown";
         JLabel nameLabel = new JLabel(name);
         nameLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
 
-        double unitPrice = prod.getDouble("price");
+        double unitPrice = prod!=null?prod.getDouble("price"):0.0000;
         JLabel priceLabel = new JLabel(String.format("Unit price: $ %.2f", unitPrice)); // currency symbol optional
 
         center.add(nameLabel, BorderLayout.NORTH);
@@ -274,7 +284,7 @@ public class CartPage extends javax.swing.JFrame {
     // Recalculate total from current cartItems and update totalLabel
     private void recalcTotal() {
         double tot = 0.0;
-        for (JSONObject item : cartItems) {
+        for (JSONObject item : cartModel.getItems()) {
             JSONObject prod=null;
             try{
                 URL url=new URL("http://localhost:8080/products/"+item.get("productId").toString());
@@ -282,6 +292,7 @@ public class CartPage extends javax.swing.JFrame {
                 conn.setRequestMethod("GET");
                 conn.setRequestProperty("Accept","application/json");
                 conn.setRequestProperty("Authorization", "Bearer "+AuthManager.Token);
+                conn.setRequestProperty("Refresh-Token", AuthManager.Refresh);
 
                 int rc=conn.getResponseCode();
                 if (rc>=200&&rc<300){
@@ -315,7 +326,10 @@ public class CartPage extends javax.swing.JFrame {
                 conn.setRequestMethod("PUT");
                 conn.setRequestProperty("Content-Type", "application/json");
                 String token = AuthManager.Token;
-                if (token != null && !token.isEmpty()) conn.setRequestProperty("Authorization", "Bearer " + token);
+                if (token != null && !token.isEmpty()) {
+                    conn.setRequestProperty("Authorization", "Bearer " + token);
+                    conn.setRequestProperty("Refresh-Token", AuthManager.Refresh);
+                }
                 conn.setDoOutput(true);
 
                 JSONObject body = new JSONObject();
@@ -364,7 +378,10 @@ public class CartPage extends javax.swing.JFrame {
                 conn.setRequestMethod("DELETE");
                 conn.setRequestProperty("Accept", "application/json");
                 String token = AuthManager.Token;
-                if (token != null && !token.isEmpty()) conn.setRequestProperty("Authorization", "Bearer " + token);
+                if (token != null && !token.isEmpty()) {
+                    conn.setRequestProperty("Authorization", "Bearer " + token);
+                    conn.setRequestProperty("Refresh-Token", AuthManager.Refresh);
+                }
                 conn.setDoOutput(true);
 
                 JSONObject body = new JSONObject();
@@ -381,7 +398,7 @@ public class CartPage extends javax.swing.JFrame {
 
                 if (rc >= 200 && rc < 300) {
                     // remove locally and refresh UI
-                    cartItems.remove(item);
+                    cartModel.removeItem(item);
                     SwingUtilities.invokeLater(() -> {
                         rebuildItemsUI();
                         recalcTotal();
@@ -406,7 +423,10 @@ public class CartPage extends javax.swing.JFrame {
                 conn.setRequestMethod("POST");
                 conn.setRequestProperty("Content-Type", "application/json");
                 String token = AuthManager.Token;
-                if (token != null && !token.isEmpty()) conn.setRequestProperty("Authorization", "Bearer " + token);
+                if (token != null && !token.isEmpty()){
+                    conn.setRequestProperty("Authorization", "Bearer " + token);
+                    conn.setRequestProperty("Refresh-Token",AuthManager.Refresh);
+                }
                 conn.setDoOutput(true);
 
                 // Could pass cart summary if needed; many servers use token to identify cart
@@ -424,7 +444,7 @@ public class CartPage extends javax.swing.JFrame {
                     SwingUtilities.invokeLater(() -> {
                         JOptionPane.showMessageDialog(CartPage.this, "Checkout successful!");
                         // optionally clear UI and reload cart
-                        cartItems.clear();
+                        cartModel.clear();
                         rebuildItemsUI();
                         recalcTotal();
                     });
@@ -451,8 +471,6 @@ public class CartPage extends javax.swing.JFrame {
         totalLabel = new javax.swing.JLabel();
         checkoutButton = new javax.swing.JButton();
 
-        setDefaultCloseOperation(javax.swing.WindowConstants.DISPOSE_ON_CLOSE);
-        setTitle("ShopSphere - Cart");
         setPreferredSize(new java.awt.Dimension(900, 600));
         setBackground(new java.awt.Color(250, 250, 250));
 
@@ -465,8 +483,7 @@ public class CartPage extends javax.swing.JFrame {
         homeButton.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
                 // open HomePage and dispose this
-                new HomePage();
-                CartPage.this.dispose();
+                parent.showPage("HOME");
             }
         });
 
@@ -537,8 +554,8 @@ public class CartPage extends javax.swing.JFrame {
         );
 
         // Main frame layout
-        javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
-        getContentPane().setLayout(layout);
+        javax.swing.GroupLayout layout = new javax.swing.GroupLayout(this);
+        this.setLayout(layout);
         layout.setHorizontalGroup(
             layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
                 .addComponent(topPanel, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
@@ -555,20 +572,11 @@ public class CartPage extends javax.swing.JFrame {
                     .addComponent(bottomPanel, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
         );
 
-        pack();
+        this.revalidate();
+        this.repaint();
     }
     
-    public static void main(String[] args) {
-        // Always start Swing apps on the Event Dispatch Thread
-        javax.swing.SwingUtilities.invokeLater(new Runnable() {
-            public void run() {
-                // Start with HomePage
-                new CartPage();
-                // Or, for testing cart directly:
-                // new CartPage();
-            }
-        });
-    }
+    
 
  
     // ------------------- End of class -------------------

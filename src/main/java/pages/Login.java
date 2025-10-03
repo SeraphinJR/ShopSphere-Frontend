@@ -213,7 +213,8 @@ public Login() {
                 
                 JSONObject resp=new JSONObject(response.toString());
                 if ("success".equals(resp.getString("status"))){
-                    AuthManager.Token=resp.getString("token");
+                    AuthManager.Token=resp.getString("accessToken");
+                    AuthManager.Refresh=resp.getString("refreshToken");
                     System.out.print("Token:"+AuthManager.Token);
                     return(true);
                 }
