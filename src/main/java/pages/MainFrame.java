@@ -56,7 +56,7 @@ public class MainFrame extends JFrame {
         cardPanel.add(new HomePage(this, cartModel), "HOME");
         cardPanel.add(new CartPage(this, cartModel), "CART");
         cardPanel.add(billingPanel, "BILLING");
-        cardPanel.add(new OrdersPage(this, cartModel), "ORDERS");
+        cardPanel.add(new OrdersPanel(this), "ORDERS");
         cardPanel.add(new ProfilePage(this, cartModel), "PROFILE");
         cardPanel.add(new VendorDashboard(this, cartModel), "VENDOR");
 
@@ -97,7 +97,7 @@ public class MainFrame extends JFrame {
                 cardPanel.add(new CartPage(this, cartModel));
                 break;
             case "ORDERS":
-                cardPanel.add(new OrdersPage(this, cartModel));
+                cardPanel.add(new OrdersPanel(this));
                 break;
             case "PROFILE":
                 cardPanel.add(new ProfilePage(this, cartModel));
