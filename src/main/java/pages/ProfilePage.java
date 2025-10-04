@@ -39,20 +39,21 @@ public class ProfilePage extends JPanel {
     }
 
     private void init() {
+        // Top-level layout: vertical stack with photo centered at top
         setLayout(new BorderLayout(12, 12));
         setBackground(Color.WHITE);
 
         JLabel title = new JLabel("Profile", SwingConstants.CENTER);
         title.setFont(new Font("Segoe UI", Font.BOLD, 20));
+        title.setForeground(new Color(30, 30, 30));
         add(title, BorderLayout.NORTH);
 
-        JPanel center = new JPanel();
-        center.setBackground(Color.WHITE);
-        center.setLayout(new GridBagLayout());
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(8, 8, 8, 8);
+        // Content panel - vertical
+        JPanel content = new JPanel();
+        content.setBackground(Color.WHITE);
+        content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
 
-        // Photo placeholder
+        // Photo area (centered)
         photoLabel = new JLabel() {
             @Override
             protected void paintComponent(Graphics g) {
@@ -69,7 +70,6 @@ public class ProfilePage extends JPanel {
                 g2.fillOval(x, y, size, size);
                 // draw image if present
                 if (profileImage != null) {
-                    // scale and clip to oval
                     BufferedImage scaled = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
                     Graphics2D g3 = scaled.createGraphics();
                     g3.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
@@ -78,7 +78,6 @@ public class ProfilePage extends JPanel {
                     g2.setClip(new java.awt.geom.Ellipse2D.Float(x, y, size, size));
                     g2.drawImage(scaled, x, y, null);
                 } else {
-                    // placeholder icon/text
                     g2.setColor(new Color(150, 150, 150));
                     String s = "Photo";
                     FontMetrics fm = g2.getFontMetrics();
@@ -88,63 +87,77 @@ public class ProfilePage extends JPanel {
                 g2.dispose();
             }
         };
-        photoLabel.setPreferredSize(new Dimension(160, 160));
+        photoLabel.setPreferredSize(new Dimension(180, 180));
+        photoLabel.setMaximumSize(new Dimension(180, 180));
         photoLabel.setOpaque(false);
 
         uploadBtn = new JButton("Upload Photo");
+        uploadBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
         uploadBtn.addActionListener(e -> onUploadPhoto());
 
-        JPanel photoCol = new JPanel(new BorderLayout(6, 6));
-        photoCol.setBackground(Color.WHITE);
-        photoCol.add(photoLabel, BorderLayout.CENTER);
-        photoCol.add(uploadBtn, BorderLayout.SOUTH);
+        JPanel photoPanel = new JPanel();
+        photoPanel.setBackground(Color.WHITE);
+        photoPanel.setLayout(new BoxLayout(photoPanel, BoxLayout.Y_AXIS));
+        photoPanel.add(Box.createVerticalStrut(8));
+        photoLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        photoPanel.add(photoLabel);
+        photoPanel.add(Box.createVerticalStrut(8));
+        uploadBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
+        photoPanel.add(uploadBtn);
+        photoPanel.add(Box.createVerticalStrut(12));
 
-        gbc.gridx = 0;
-        gbc.gridy = 0;
-        gbc.gridheight = 4;
-        center.add(photoCol, gbc);
+        content.add(photoPanel);
 
-        // Name
-        gbc.gridheight = 1;
-        gbc.gridx = 1;
-        gbc.gridy = 0;
-        gbc.anchor = GridBagConstraints.WEST;
-        center.add(new JLabel("Name:"), gbc);
+        // Details area - stacked rows centered
+        JPanel details = new JPanel();
+        details.setBackground(Color.WHITE);
+        details.setLayout(new BoxLayout(details, BoxLayout.Y_AXIS));
+        details.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        nameField = new JTextField(24);
+        // Name row
+        JPanel nameRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 6));
+        nameRow.setBackground(Color.WHITE);
+        JLabel nameLabel = new JLabel("Name:");
+        nameLabel.setForeground(new Color(40, 40, 40));
+        nameRow.add(nameLabel);
+        nameField = new JTextField(20);
         nameField.setEditable(false);
-        gbc.gridx = 2;
-        center.add(nameField, gbc);
+        nameRow.add(nameField);
+        details.add(nameRow);
 
-        // Email
-        gbc.gridx = 1;
-        gbc.gridy = 1;
-        center.add(new JLabel("Email:"), gbc);
-
-        emailField = new JTextField(24);
+        // Email row
+        JPanel emailRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 6));
+        emailRow.setBackground(Color.WHITE);
+        JLabel emailLabel = new JLabel("Email:");
+        emailLabel.setForeground(new Color(40, 40, 40));
+        emailRow.add(emailLabel);
+        emailField = new JTextField(20);
         emailField.setEditable(false);
-        gbc.gridx = 2;
-        center.add(emailField, gbc);
+        emailRow.add(emailField);
+        details.add(emailRow);
 
-        // Role dropdown
-        gbc.gridx = 1;
-        gbc.gridy = 2;
-        center.add(new JLabel("Role:"), gbc);
-
+        // Role row
+        JPanel roleRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 6));
+        roleRow.setBackground(Color.WHITE);
+        JLabel roleLabel = new JLabel("Role:");
+        roleLabel.setForeground(new Color(40, 40, 40));
+        roleRow.add(roleLabel);
         roleCombo = new JComboBox<>(new String[] { "CUSTOMER", "VENDOR" });
         roleCombo.setSelectedIndex(0);
-        gbc.gridx = 2;
-        center.add(roleCombo, gbc);
+        roleRow.add(roleCombo);
+        details.add(roleRow);
 
-        // Save button
+        // Save button centered
         saveBtn = new JButton("Save");
+        saveBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
         saveBtn.addActionListener(e -> onSaveProfile());
-        gbc.gridx = 2;
-        gbc.gridy = 3;
-        gbc.anchor = GridBagConstraints.EAST;
-        center.add(saveBtn, gbc);
+        details.add(Box.createVerticalStrut(8));
+        details.add(saveBtn);
 
-        add(center, BorderLayout.CENTER);
+        content.add(details);
+
+        // put content into center
+        add(content, BorderLayout.CENTER);
     }
 
     private void fetchProfileAsync() {

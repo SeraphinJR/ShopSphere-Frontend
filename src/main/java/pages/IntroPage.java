@@ -31,12 +31,12 @@ public class IntroPage extends JFrame {
                 int w = getWidth();
                 int h = getHeight();
                 // background
-                g2.setColor(new Color(250, 250, 250));
+                g2.setColor(new Color(0, 0, 0));
                 g2.fillRect(0, 0, w, h);
 
                 // draw title with scale and alpha
                 g2.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, alpha));
-                g2.setColor(new Color(20, 33, 61));
+                g2.setColor(new Color(255, 255, 255));
                 g2.setFont(g2.getFont().deriveFont(Font.BOLD, 48f * scale));
                 String title = "ShopSphere";
                 FontMetrics fm = g2.getFontMetrics();
@@ -129,6 +129,9 @@ public class IntroPage extends JFrame {
     }
 
     public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> new IntroPage());
+        SwingUtilities.invokeLater(() -> {
+            Theme.applyDarkTheme();
+            new IntroPage();
+        });
     }
 }

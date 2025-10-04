@@ -91,6 +91,12 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
+        <!-- FlatLaf for modern dark look-and-feel in Swing UI -->
+        <dependency>
+            <groupId>com.formdev</groupId>
+            <artifactId>flatlaf</artifactId>
+            <version>3.1</version>
+        </dependency>
     </dependencies>
 
     <build>

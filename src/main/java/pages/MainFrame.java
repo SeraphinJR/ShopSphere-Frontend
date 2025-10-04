@@ -217,6 +217,7 @@ public class MainFrame extends JFrame {
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
+            Theme.applyDarkTheme();
             MainFrame frame = new MainFrame();
             frame.setVisible(true);
         });
