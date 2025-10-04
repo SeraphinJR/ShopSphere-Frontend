@@ -378,6 +378,23 @@ public class HomePage extends JPanel {
         mainMenu.add(miProfile);
         mainMenu.addSeparator();
         mainMenu.add(miVendor);
+        mainMenu.addSeparator();
+        JMenuItem miLogout = new JMenuItem("Logout");
+        miLogout.addActionListener(e -> {
+            // clear tokens
+            AuthManager.Token = "";
+            AuthManager.Refresh = "";
+            // close main frame and open login
+            SwingUtilities.invokeLater(() -> {
+                // dispose parent frame if it's a frame
+                Window w = SwingUtilities.getWindowAncestor(HomePage.this);
+                if (w != null)
+                    w.dispose();
+                Login login = new Login();
+                login.setVisible(true);
+            });
+        });
+        mainMenu.add(miLogout);
 
         cartButton.addActionListener(e -> {
             // show the popup menu aligned to the button
