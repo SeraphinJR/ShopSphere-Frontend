@@ -118,56 +118,97 @@ public class BillingPanel extends JPanel {
         itemsPanel.repaint();
     }
 
-    private JPanel makeBillingRow(JSONObject item) {
-        JPanel row = new JPanel(new BorderLayout());
-        row.setBackground(Color.WHITE);
-        row.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Color.LIGHT_GRAY), BorderFactory.createEmptyBorder(8,8,8,8)
-        ));
+private JPanel makeBillingRow(JSONObject item) {
+    // compute a height proportional to screen width (adjust the multiplier to taste)
+    int screenWidth = java.awt.Toolkit.getDefaultToolkit().getScreenSize().width;
+    int rowHeight = Math.max(72, (int)(screenWidth * 0.060)); // e.g. 4.5% of screen width, min 56px
 
-        // left: product name (we don't have product object here in model; show productId + quantity)
-        String pid = item.optString("productId", item.optString("id", "n/a"));
-        int qty = item.optInt("quantity", 1);
-        JLabel left = new JLabel("Product ID: " + pid + "  × " + qty);
-        left.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-        row.add(left, BorderLayout.WEST);
+    JPanel row = new JPanel(new BorderLayout(12, 0));
+    row.setBackground(Color.WHITE);
+    row.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(Color.LIGHT_GRAY),
+            BorderFactory.createEmptyBorder(8, 12, 8, 12)
+    ));
+    // allow horizontal expansion, limit vertical
+    row.setMaximumSize(new Dimension(Integer.MAX_VALUE, rowHeight));
+    row.setPreferredSize(new Dimension(0, rowHeight));
+    row.setAlignmentX(Component.LEFT_ALIGNMENT); // important for BoxLayout parent to stretch width
 
-        // right: price placeholder — will be updated in recalcTotalAsync if we can fetch product info
-        JLabel right = new JLabel("Price: fetching...");
-        row.add(right, BorderLayout.EAST);
+    // Left: image placeholder (square, height ~= rowHeight - padding)
+    int imgSize = Math.max(48, rowHeight - 16);
+    JPanel imgPanel = new JPanel(new BorderLayout());
+    imgPanel.setPreferredSize(new Dimension(imgSize, imgSize));
+    imgPanel.setMinimumSize(new Dimension(imgSize, imgSize));
+    imgPanel.setBackground(new Color(230, 230, 230));
+    JLabel imgLabel = new JLabel("Img", SwingConstants.CENTER);
+    imgLabel.setFont(new Font("Segoe UI", Font.BOLD, Math.max(10, imgSize / 6)));
+    imgPanel.add(imgLabel, BorderLayout.CENTER);
 
-        // attach the price label to the JSON item for later update? We'll do a quick fetch per-row in background.
-        // Kick off a small background job to fetch product price/name if available
-        new Thread(() -> {
-            try {
-                URL url = new URL("http://localhost:8080/products/" + pid);
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("GET");
-                conn.setRequestProperty("Accept", "application/json");
-                int rc = conn.getResponseCode();
-                if (rc >= 200 && rc < 300) {
-                    BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                    StringBuilder sb = new StringBuilder();
-                    String line;
-                    while ((line = br.readLine()) != null) sb.append(line);
-                    br.close();
-                    JSONObject prod = new JSONObject(sb.toString());
-                    String name = prod.optString("name", "Product " + pid);
-                    double price = prod.optDouble("price", 0.0);
-                    SwingUtilities.invokeLater(() -> {
-                        left.setText(name + " (ID " + pid + ") × " + qty);
-                        right.setText(String.format("$ %.2f each  —  Line: $ %.2f", price, price * qty));
-                    });
-                } else {
-                    SwingUtilities.invokeLater(() -> right.setText("Price: N/A"));
-                }
-            } catch (Exception ex) {
-                SwingUtilities.invokeLater(() -> right.setText("Price: error"));
+    // Center: name + quantity (vertical)
+    JPanel infoPanel = new JPanel();
+    infoPanel.setLayout(new BoxLayout(infoPanel, BoxLayout.Y_AXIS));
+    infoPanel.setBackground(Color.WHITE);
+
+    String pid = item.optString("productId", item.optString("id", "n/a"));
+    int qty = item.optInt("quantity", 1);
+
+    JLabel nameLabel = new JLabel("Product ID: " + pid);
+    nameLabel.setFont(new Font("Segoe UI", Font.BOLD, Math.max(12, rowHeight / 6)));
+
+    JLabel qtyLabel = new JLabel("Qty: " + qty);
+    qtyLabel.setFont(new Font("Segoe UI", Font.PLAIN, Math.max(11, rowHeight / 7)));
+    qtyLabel.setForeground(Color.DARK_GRAY);
+
+    infoPanel.add(nameLabel);
+    infoPanel.add(Box.createRigidArea(new Dimension(0, Math.max(4, rowHeight/18))));
+    infoPanel.add(qtyLabel);
+
+    // Right: price (aligned right)
+    JLabel priceLabel = new JLabel("Price: fetching...");
+    priceLabel.setFont(new Font("Segoe UI", Font.PLAIN, Math.max(12, rowHeight / 7)));
+    JPanel priceWrapper = new JPanel(new BorderLayout());
+    priceWrapper.setOpaque(false);
+    priceWrapper.add(priceLabel, BorderLayout.SOUTH); // bottom-align helps when using taller rows
+
+    // Assemble
+    row.add(imgPanel, BorderLayout.WEST);
+    row.add(infoPanel, BorderLayout.CENTER);
+    row.add(priceWrapper, BorderLayout.EAST);
+
+    // Async fetch for product details (name & price) — unchanged logic but updates compact UI
+    new Thread(() -> {
+        try {
+            URL url = new URL("http://localhost:8080/products/" + pid);
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Accept", "application/json");
+            int rc = conn.getResponseCode();
+            if (rc >= 200 && rc < 300) {
+                BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                StringBuilder sb = new StringBuilder();
+                String line;
+                while ((line = br.readLine()) != null) sb.append(line);
+                br.close();
+                JSONObject prod = new JSONObject(sb.toString());
+                String name = prod.optString("name", "Product " + pid);
+                double price = prod.optDouble("price", 0.0);
+                SwingUtilities.invokeLater(() -> {
+                    nameLabel.setText(name);
+                    priceLabel.setText(String.format("$ %.2f each  —  Total: $ %.2f", price, price * qty));
+                });
+            } else {
+                SwingUtilities.invokeLater(() -> priceLabel.setText("Price: N/A"));
             }
-        }).start();
+        } catch (Exception ex) {
+            SwingUtilities.invokeLater(() -> priceLabel.setText("Price: error"));
+        }
+    }).start();
 
-        return row;
-    }
+    return row;
+}
+
+
+
 
     /** Compute total by looping cart items and fetching each product price (async). */
     private void recalcTotalAsync() {

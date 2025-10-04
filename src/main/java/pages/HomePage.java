@@ -12,6 +12,9 @@ import org.json.JSONObject;
 import javax.imageio.ImageIO;
 import java.awt.Image;
 import model.CartModel;
+import java.awt.Cursor;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 /**
  * HomePage - ShopSphere
  * NetBeans GUI Builder style JFrame with initComponents().
@@ -205,6 +208,19 @@ private JPanel createProductCard(String id, String name, String price, String im
 
     card.add(imageLabel, BorderLayout.NORTH);
     card.add(info, BorderLayout.CENTER);
+    // after card construction, before return
+    card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+    card.addMouseListener(new MouseAdapter() {
+        @Override public void mouseClicked(MouseEvent e) {
+            // open detail frame on click (use product id as string)
+            String pid = String.valueOf(id);
+            SwingUtilities.invokeLater(() -> {
+                ProductDetailFrame f = new ProductDetailFrame(pid);
+                f.setVisible(true);
+            });
+    }
+});
+
 
     return card;
 }
