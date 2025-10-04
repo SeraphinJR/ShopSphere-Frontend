@@ -199,7 +199,7 @@ public class ProductDetailFrame extends JFrame {
                                 // try local resource, else server static path
                                 InputStream is = getClass().getResourceAsStream("/images/" + image);
                                 if (is != null) img = ImageIO.read(is);
-                                else img = ImageIO.read(new URL("http://localhost:8080/images/" + image));
+                                else img = ImageIO.read(new URL("http://localhost:8080/uploads/" + image));
                             }
                             if (img != null) {
                                 Image scaled = img.getScaledInstance(300, 300, Image.SCALE_SMOOTH);
