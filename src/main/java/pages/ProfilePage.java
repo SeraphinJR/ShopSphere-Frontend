@@ -3,8 +3,7 @@ package pages;
 import javax.imageio.ImageIO;
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.ActionListener;
+// ...existing code...
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.HttpURLConnection;
@@ -25,8 +24,6 @@ public class ProfilePage extends JPanel {
     private JLabel photoLabel;
     private JTextField nameField;
     private JTextField emailField;
-    private JComboBox<String> roleCombo;
-    private JButton saveBtn;
     private JButton uploadBtn;
 
     private BufferedImage profileImage = null;
@@ -108,52 +105,54 @@ public class ProfilePage extends JPanel {
 
         content.add(photoPanel);
 
-        // Details area - stacked rows centered
-        JPanel details = new JPanel();
+        // Details area - compact, formal layout (labels left, fields right)
+        JPanel details = new JPanel(new GridBagLayout());
         details.setBackground(Color.WHITE);
-        details.setLayout(new BoxLayout(details, BoxLayout.Y_AXIS));
         details.setAlignmentX(Component.CENTER_ALIGNMENT);
 
-        // Name row
-        JPanel nameRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 6));
-        nameRow.setBackground(Color.WHITE);
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(6, 6, 6, 6);
+        gbc.anchor = GridBagConstraints.WEST;
+
         JLabel nameLabel = new JLabel("Name:");
+        nameLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         nameLabel.setForeground(new Color(40, 40, 40));
-        nameRow.add(nameLabel);
-        nameField = new JTextField(20);
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        details.add(nameLabel, gbc);
+
+        nameField = new JTextField(22);
         nameField.setEditable(false);
-        nameRow.add(nameField);
-        details.add(nameRow);
+        nameField.setBackground(Color.WHITE);
+        nameField.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(200, 200, 200)));
+        nameField.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        gbc.gridx = 1;
+        gbc.gridy = 0;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.weightx = 1.0;
+        details.add(nameField, gbc);
 
-        // Email row
-        JPanel emailRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 6));
-        emailRow.setBackground(Color.WHITE);
         JLabel emailLabel = new JLabel("Email:");
+        emailLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         emailLabel.setForeground(new Color(40, 40, 40));
-        emailRow.add(emailLabel);
-        emailField = new JTextField(20);
+        gbc.gridx = 0;
+        gbc.gridy = 1;
+        gbc.fill = GridBagConstraints.NONE;
+        gbc.weightx = 0;
+        details.add(emailLabel, gbc);
+
+        emailField = new JTextField(22);
         emailField.setEditable(false);
-        emailRow.add(emailField);
-        details.add(emailRow);
+        emailField.setBackground(Color.WHITE);
+        emailField.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(200, 200, 200)));
+        emailField.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        gbc.gridx = 1;
+        gbc.gridy = 1;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.weightx = 1.0;
+        details.add(emailField, gbc);
 
-        // Role row
-        JPanel roleRow = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 6));
-        roleRow.setBackground(Color.WHITE);
-        JLabel roleLabel = new JLabel("Role:");
-        roleLabel.setForeground(new Color(40, 40, 40));
-        roleRow.add(roleLabel);
-        roleCombo = new JComboBox<>(new String[] { "CUSTOMER", "VENDOR" });
-        roleCombo.setSelectedIndex(0);
-        roleRow.add(roleCombo);
-        details.add(roleRow);
-
-        // Save button centered
-        saveBtn = new JButton("Save");
-        saveBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
-        saveBtn.addActionListener(e -> onSaveProfile());
-        details.add(Box.createVerticalStrut(8));
-        details.add(saveBtn);
-
+        // Keep name and email visually close by reducing vertical gaps
         content.add(details);
 
         // put content into center
@@ -161,7 +160,6 @@ public class ProfilePage extends JPanel {
     }
 
     private void fetchProfileAsync() {
-        saveBtn.setEnabled(false);
         uploadBtn.setEnabled(false);
         SwingWorker<JSONObject, Void> worker = new SwingWorker<>() {
             @Override
@@ -179,7 +177,6 @@ public class ProfilePage extends JPanel {
                 } catch (Exception ex) {
                     ex.printStackTrace();
                 } finally {
-                    saveBtn.setEnabled(true);
                     uploadBtn.setEnabled(true);
                 }
             }
@@ -231,17 +228,13 @@ public class ProfilePage extends JPanel {
         String first = p.optString("firstName", p.optString("first", ""));
         String last = p.optString("lastName", p.optString("last", ""));
         String email = p.optString("email", p.optString("username", ""));
-        String role = p.optString("role", p.optString("userType", "CUSTOMER"));
+        // role is intentionally ignored in the UI (read-only view)
         String photoUrl = p.optString("photoUrl", p.optString("avatar", ""));
 
         nameField.setText((first + " " + last).trim());
         emailField.setText(email);
-        if (role != null) {
-            if (role.equalsIgnoreCase("vendor") || role.equalsIgnoreCase("VENDOR"))
-                roleCombo.setSelectedItem("VENDOR");
-            else
-                roleCombo.setSelectedItem("CUSTOMER");
-        }
+        // Role is intentionally not editable in the UI; keep server-side value if
+        // needed.
 
         if (!photoUrl.isEmpty()) {
             // try to load image
@@ -269,56 +262,7 @@ public class ProfilePage extends JPanel {
         }
     }
 
-    private void onSaveProfile() {
-        saveBtn.setEnabled(false);
-        SwingWorker<Boolean, Void> w = new SwingWorker<>() {
-            @Override
-            protected Boolean doInBackground() throws Exception {
-                String newRole = (String) roleCombo.getSelectedItem();
-                JSONObject body = new JSONObject();
-                body.put("role", newRole);
-                // try PUT to /users/me then /auth/me
-                String[] endpoints = { "http://localhost:8080/users/me", "http://localhost:8080/auth/me" };
-                for (String ep : endpoints) {
-                    try {
-                        URL url = new URL(ep);
-                        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                        conn.setRequestMethod("PUT");
-                        conn.setRequestProperty("Content-Type", "application/json");
-                        String token = AuthManager.Token;
-                        if (token != null && !token.isEmpty())
-                            conn.setRequestProperty("Authorization", "Bearer " + token);
-                        conn.setDoOutput(true);
-                        try (OutputStream os = conn.getOutputStream()) {
-                            os.write(body.toString().getBytes("utf-8"));
-                        }
-                        int rc = conn.getResponseCode();
-                        if (rc >= 200 && rc < 300)
-                            return true;
-                    } catch (Exception ex) {
-                        // try next
-                    }
-                }
-                return false;
-            }
-
-            @Override
-            protected void done() {
-                try {
-                    boolean ok = get();
-                    if (ok)
-                        JOptionPane.showMessageDialog(ProfilePage.this, "Profile updated");
-                    else
-                        JOptionPane.showMessageDialog(ProfilePage.this, "Failed to update profile on server");
-                } catch (Exception ex) {
-                    JOptionPane.showMessageDialog(ProfilePage.this, "Error: " + ex.getMessage());
-                } finally {
-                    saveBtn.setEnabled(true);
-                }
-            }
-        };
-        w.execute();
-    }
+    // onSaveProfile removed - profile is read-only in this view
 
     private void onUploadPhoto() {
         JFileChooser chooser = new JFileChooser();
