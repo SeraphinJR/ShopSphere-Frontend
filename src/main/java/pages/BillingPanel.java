@@ -140,9 +140,8 @@ private JPanel makeBillingRow(JSONObject item) {
     imgPanel.setPreferredSize(new Dimension(imgSize, imgSize));
     imgPanel.setMinimumSize(new Dimension(imgSize, imgSize));
     imgPanel.setBackground(new Color(230, 230, 230));
-    JLabel imgLabel = new JLabel("Img", SwingConstants.CENTER);
-    imgLabel.setFont(new Font("Segoe UI", Font.BOLD, Math.max(10, imgSize / 6)));
-    imgPanel.add(imgLabel, BorderLayout.CENTER);
+    
+    
 
     // Center: name + quantity (vertical)
     JPanel infoPanel = new JPanel();
@@ -191,6 +190,11 @@ private JPanel makeBillingRow(JSONObject item) {
                 br.close();
                 JSONObject prod = new JSONObject(sb.toString());
                 String name = prod.optString("name", "Product " + pid);
+                JLabel imgLabel = new JLabel("Img", SwingConstants.CENTER);
+                String imgField = prod.optString("image", null); 
+                loadProductImage(imgLabel, imgField, imgSize, imgSize);
+                imgLabel.setFont(new Font("Segoe UI", Font.BOLD, Math.max(10, imgSize / 6)));
+                imgPanel.add(imgLabel, BorderLayout.CENTER);
                 double price = prod.optDouble("price", 0.0);
                 SwingUtilities.invokeLater(() -> {
                     nameLabel.setText(name);
@@ -288,6 +292,47 @@ private JPanel makeBillingRow(JSONObject item) {
         }catch(Exception e){}
         
     }
+    
+    private void loadProductImage(JLabel imgLabel, String imageField, int width, int height) {
+        if (imageField == null || imageField.isEmpty()) {
+            imgLabel.setText("[no image]");
+            return;
+        }
+
+        String imageUrl = imageField.startsWith("http") ? imageField : "http://localhost:8080/uploads/" + imageField;
+        imgLabel.setText("[loading...]");
+
+        new Thread(() -> {
+            try {
+                URL url = new URL(imageUrl);
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+                conn.setConnectTimeout(3000);
+                conn.setReadTimeout(3000);
+
+                int rc = conn.getResponseCode();
+                if (rc >= 200 && rc < 300) {
+                    Image img = javax.imageio.ImageIO.read(conn.getInputStream());
+                    if (img != null) {
+                        Image scaled = img.getScaledInstance(width, height, Image.SCALE_SMOOTH);
+                        SwingUtilities.invokeLater(() -> {
+                            imgLabel.setText("");
+                            imgLabel.setIcon(new ImageIcon(scaled));
+                        });
+                    } else {
+                        SwingUtilities.invokeLater(() -> imgLabel.setText("[no image]"));
+                    }
+                } else {
+                    SwingUtilities.invokeLater(() -> imgLabel.setText("[no image]"));
+                }
+
+                conn.disconnect();
+            } catch (Exception e) {
+                SwingUtilities.invokeLater(() -> imgLabel.setText("[no image]"));
+            }
+        }).start();
+    }
+
     
     /** Called when user confirms payment is completed. Posts /orders with items. */
     private void submitOrderAsync() {

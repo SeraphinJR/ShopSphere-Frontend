@@ -146,43 +146,9 @@ public class CartPage extends JPanel {
         ));
         card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 120));
         card.setBackground(Color.WHITE);
-
+        
         // Left: image
-        JLabel imgLabel = new JLabel();
-        imgLabel.setPreferredSize(new Dimension(120, 90));
-        imgLabel.setHorizontalAlignment(SwingConstants.CENTER);
-        imgLabel.setVerticalAlignment(SwingConstants.CENTER);
-        String imageField = item.optString("image", "");
-        // try HTTP first, then resource fallback
-        if (imageField != null && !imageField.isEmpty()) {
-            new Thread(() -> {
-                try {
-                    Image img = null;
-                    if (imageField.startsWith("http")) {
-                        img = ImageIO.read(new URL(imageField));
-                    } else {
-                        // try resources path (if you bundle) OR server static path
-                        try {
-                            img = ImageIO.read(getClass().getResourceAsStream("/images/" + imageField));
-                        } catch (Throwable t) {
-                            // fallback to server static path
-                            img = ImageIO.read(new URL("http://localhost:8080/images/" + imageField));
-                        }
-                    }
-                    if (img != null) {
-                        Image scaled = img.getScaledInstance(110, 90, Image.SCALE_SMOOTH);
-                        SwingUtilities.invokeLater(() -> imgLabel.setIcon(new ImageIcon(scaled)));
-                    }
-                } catch (Exception ex) {
-                    // ignore image loading issues; show placeholder text
-                    SwingUtilities.invokeLater(() -> imgLabel.setText("[no image]"));
-                }
-            }).start();
-        } else {
-            imgLabel.setText("[no image]");
-        }
-
-        card.add(imgLabel, BorderLayout.WEST);
+        
 
         // Center: name + unit price + small desc
         JPanel center = new JPanel(new BorderLayout());
@@ -213,6 +179,37 @@ public class CartPage extends JPanel {
         }catch(Exception e){
         System.out.print("Error:"+e);}
 
+        JLabel imgLabel = new JLabel();
+        imgLabel.setPreferredSize(new Dimension(120, 90));
+        imgLabel.setHorizontalAlignment(SwingConstants.CENTER);
+        imgLabel.setVerticalAlignment(SwingConstants.CENTER);
+        String imageField = prod.optString("image", "");
+        // try HTTP first, then resource fallback
+        if (imageField != null && !imageField.isEmpty()) {
+            String imageUrl = imageField.startsWith("http") ? imageField : "http://localhost:8080/uploads/" + imageField;
+
+            new Thread(() -> {
+                try {
+                    Image img = ImageIO.read(new URL(imageUrl));
+                    if (img != null) {
+                        Image scaled = img.getScaledInstance(110, 90, Image.SCALE_SMOOTH);
+                        SwingUtilities.invokeLater(() -> imgLabel.setText("") // remove placeholder
+                                );
+                        SwingUtilities.invokeLater(() -> imgLabel.setIcon(new ImageIcon(scaled)));
+                    } else {
+                        SwingUtilities.invokeLater(() -> imgLabel.setText("[no image1]"));
+                    }
+                } catch (Exception ex) {
+                    SwingUtilities.invokeLater(() -> imgLabel.setText("[no image2]"));
+                }
+            }).start();
+        } else {
+            imgLabel.setText("[no image3]");
+        }
+
+
+        card.add(imgLabel, BorderLayout.WEST);
+        
         String name = prod!=null?prod.getString("name"):"Unknown";
         JLabel nameLabel = new JLabel(name);
         nameLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));

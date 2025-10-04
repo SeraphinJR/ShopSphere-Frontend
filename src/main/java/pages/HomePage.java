@@ -95,7 +95,7 @@ public class HomePage extends JPanel {
                     String imageFile = p.getString("image"); // e.g., "image1.jpg"
 
                     // If your images are served via HTTP, prepend the URL
-                    String imageUrl = "http://localhost:8080/images/" + imageFile;
+                    String imageUrl = "http://localhost:8080/uploads/" + imageFile;
 
                     JPanel card = createProductCard(id, name, price, imageUrl, true);
                     productPanel.add(card);
@@ -131,8 +131,7 @@ public class HomePage extends JPanel {
             if (isUrl) {
                 img = ImageIO.read(new URL(imagePath));
             } else {
-                java.net.URL imgUrl = getClass().getResource(imagePath);
-                img = ImageIO.read(imgUrl);
+                img = ImageIO.read(new URL("http://localhost:8080/uploads/" + imagePath));
             }
             if (img != null) {
                 Image scaled = img.getScaledInstance(240, 150, Image.SCALE_SMOOTH);
@@ -302,7 +301,7 @@ public class HomePage extends JPanel {
             String imagePath = prod.getString("image"); // could be URL or local path
             boolean isUrl = imagePath.startsWith("http");
 
-            JPanel card = createProductCard(id, name, price, imagePath, true);
+            JPanel card = createProductCard(id, name, price, imagePath, isUrl);
             productPanel.add(card);
         }
         productPanel.revalidate();
