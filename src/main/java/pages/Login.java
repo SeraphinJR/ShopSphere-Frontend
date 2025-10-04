@@ -245,6 +245,8 @@ public Login() {
         boolean success = Login(email,password);
         if(success){
             JOptionPane.showMessageDialog(this,"Logged In");
+            MainFrame main= new MainFrame();
+            main.setVisible(true);
             this.dispose();
             
             

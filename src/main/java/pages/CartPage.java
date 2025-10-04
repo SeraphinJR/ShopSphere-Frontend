@@ -529,7 +529,7 @@ public class CartPage extends JPanel {
                 // confirm then call checkout
                 int confirm = JOptionPane.showConfirmDialog(CartPage.this, "Proceed to checkout?", "Checkout", JOptionPane.YES_NO_OPTION);
                 if (confirm == JOptionPane.YES_OPTION) {
-                    
+                    parent.showPage("BILLING");
                 }
             }
         });
