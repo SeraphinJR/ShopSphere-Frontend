@@ -10,6 +10,7 @@ import java.io.OutputStream;
 import java.io.InputStreamReader;
 import java.io.BufferedReader;
 import javax.swing.JOptionPane;
+import javax.swing.JCheckBox;
 
 import java.awt.BorderLayout;
 
@@ -189,6 +190,7 @@ public class Register extends javax.swing.JFrame {
 
         pack();
     }// </editor-fold>//GEN-END:initComponents
+    private javax.swing.JCheckBox vendorToggle;
 
     /** **/
     
@@ -205,6 +207,61 @@ public Register() {
     LastName.setText("");
     Email.setText("");
     Password.setText("");
+    
+    vendorToggle = new javax.swing.JCheckBox("Register as Vendor");
+    vendorToggle.setFont(new java.awt.Font("Segoe UI", 0, 14));
+    vendorToggle.setOpaque(false);
+    
+
+
+    // Add the checkbox just before the Register button manually
+    javax.swing.GroupLayout jPanel1Layout = (javax.swing.GroupLayout) jPanel1.getLayout();
+
+    jPanel1Layout.setHorizontalGroup(
+        jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(jPanel1Layout.createSequentialGroup()
+                .addContainerGap()
+                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addGroup(jPanel1Layout.createSequentialGroup()
+                        .addGap(145, 145, 145)
+                        .addComponent(Register, javax.swing.GroupLayout.PREFERRED_SIZE, 120, javax.swing.GroupLayout.PREFERRED_SIZE))
+                    .addGroup(jPanel1Layout.createSequentialGroup()
+                        .addGap(145, 145, 145)
+                        .addComponent(vendorToggle)))
+                .addContainerGap(147, Short.MAX_VALUE))
+    );
+
+    // Use a similar vertical group, with vendorToggle before Register
+    jPanel1Layout.setVerticalGroup(
+        jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+            .addGroup(jPanel1Layout.createSequentialGroup()
+                .addContainerGap()
+                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                    .addComponent(jLabel1, javax.swing.GroupLayout.PREFERRED_SIZE, 30, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(FirstName, javax.swing.GroupLayout.PREFERRED_SIZE, 30, javax.swing.GroupLayout.PREFERRED_SIZE))
+                .addGap(20, 20, 20)
+                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                    .addComponent(jLabel2, javax.swing.GroupLayout.PREFERRED_SIZE, 32, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(LastName))
+                .addGap(20, 20, 20)
+                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING, false)
+                    .addGroup(jPanel1Layout.createSequentialGroup()
+                        .addComponent(jLabel3, javax.swing.GroupLayout.PREFERRED_SIZE, 30, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addGap(20, 20, 20))
+                    .addGroup(jPanel1Layout.createSequentialGroup()
+                        .addComponent(Email)
+                        .addGap(18, 18, 18)))
+                .addGroup(jPanel1Layout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                    .addComponent(jLabel4, javax.swing.GroupLayout.PREFERRED_SIZE, 30, javax.swing.GroupLayout.PREFERRED_SIZE)
+                    .addComponent(Password, javax.swing.GroupLayout.PREFERRED_SIZE, 30, javax.swing.GroupLayout.PREFERRED_SIZE))
+                .addGap(20, 20, 20)
+                .addComponent(vendorToggle)
+                .addGap(18, 18, 18)
+                .addComponent(Register, javax.swing.GroupLayout.PREFERRED_SIZE, 40, javax.swing.GroupLayout.PREFERRED_SIZE)
+                .addContainerGap(41, Short.MAX_VALUE))
+    );
+    jPanel1.revalidate();
+    jPanel1.repaint();
 
     setVisible(true);       // make frame visible
 }
@@ -216,11 +273,11 @@ public Register() {
         // TODO add your handling code here:
     }//GEN-LAST:event_FirstNameActionPerformed
 
-    private boolean registerCust(String firstName,String lastName,String email,String password){
+    private boolean registerCust(String firstName,String lastName,String email,String password,boolean isVendor){
             System.out.println("Inside registerCust");
             System.out.println("First: " + firstName + ", Last: " + lastName + ", Email: " + email + ", Password: " + password);
         try{
-            URL url=new URL("http://localhost:8080/auth/register");
+            URL url=new URL(isVendor?"http://localhost:8080/auth/register/vendor":"http://localhost:8080/auth/register");
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("POST");
             conn.setRequestProperty("Content-Type", "application/json");
@@ -276,7 +333,7 @@ if (isr != null) {
         System.out.println("Email: " + email);
         System.out.println("Password: " + password);
         
-        boolean success = registerCust(firstName,lastName,email,password);
+        boolean success = registerCust(firstName,lastName,email,password,vendorToggle.isSelected());
         if(success){
             JOptionPane.showMessageDialog(this,"User registered successfully");
             this.dispose();
