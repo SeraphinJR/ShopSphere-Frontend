@@ -7,6 +7,7 @@ import java.awt.event.*;
 import java.io.*;
 import java.net.*;
 import org.json.*;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -94,7 +95,7 @@ public class AdminPanel extends JPanel {
         };
         
         // Reviews table model
-        String[] reviewColumns = {"ID", "Product", "User", "Rating", "Review", "Actions"};
+        String[] reviewColumns = {"ID", "Product ID", "User ID", "Rating", "Review", "Actions"};
         reviewsTableModel = new DefaultTableModel(reviewColumns, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -108,6 +109,8 @@ public class AdminPanel extends JPanel {
         panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         
         JTable table = new JTable(usersTableModel);
+        // Set preferred width for role column
+        table.getColumnModel().getColumn(4).setPreferredWidth(150);
         table.getColumnModel().getColumn(5).setCellRenderer(new ButtonRenderer());
         table.getColumnModel().getColumn(5).setCellEditor(
             new ButtonEditor(new JCheckBox(), "Edit Role", e -> {
@@ -272,14 +275,20 @@ public class AdminPanel extends JPanel {
                         for (int i = 0; i < usersArray.length(); i++) {
                             JSONObject user = usersArray.getJSONObject(i);
                             JSONArray roles = user.getJSONArray("role");
-                            String primaryRole = roles.length() > 0 ? roles.getString(0) : "CUSTOMER";
+                            
+                            // Convert roles array to comma-separated string
+                            StringBuilder roleStr = new StringBuilder();
+                            for (int j = 0; j < roles.length(); j++) {
+                                if (j > 0) roleStr.append(",");
+                                roleStr.append(roles.getString(j));
+                            }
                             
                             usersTableModel.addRow(new Object[]{
                                 String.valueOf(user.get("id")),
                                 user.getString("firstName"),
                                 user.getString("lastName"),
                                 user.getString("email"),
-                                primaryRole,
+                                roleStr.toString(),
                                 "Edit Role"
                             });
                         }
@@ -469,7 +478,7 @@ public class AdminPanel extends JPanel {
         
         // Features
         gbc.gridx = 0; gbc.gridy = gridy++;
-        form.add(new JLabel("Features:"), gbc);
+        form.add(new JLabel("Features (comma-separated):"), gbc);
         gbc.gridx = 1;
         form.add(featuresField, gbc);
         
@@ -505,7 +514,15 @@ public class AdminPanel extends JPanel {
                 product.put("description", description);
                 product.put("image", imageField.getText().trim());
                 product.put("inStock", inStockCheckbox.isSelected());
-                product.put("features", featuresField.getText().trim());
+                // Split features by comma and create a JSON array
+                JSONArray features = new JSONArray();
+                String[] featureList = featuresField.getText().trim().split(",");
+                for (String feature : featureList) {
+                    if (!feature.trim().isEmpty()) {
+                        features.put(feature.trim());
+                    }
+                }
+                product.put("features", features);
                 
                 // Add product
                 addProduct(product);
@@ -698,26 +715,61 @@ public class AdminPanel extends JPanel {
                     return;
                 }
 
-                URL url = URI.create("http://localhost:8080/admin/orders/" + orderId + "/status").toURL();
+                URL url = URI.create("http://localhost:8080/admin/orders/update/" + orderId).toURL();
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("PUT");
                 conn.setRequestProperty("Content-Type", "application/json");
                 conn.setRequestProperty("Authorization", "Bearer " + token);
+                conn.setRequestProperty("Refresh-Token", AuthManager.Refresh);
                 conn.setDoOutput(true);
 
-                // Create JSON payload
-                String jsonInput = "{\"status\":\"" + newStatus + "\"}";
+                // Get current order details from the table
+                JTable table = (JTable) ((JScrollPane) ordersPanel.getComponent(0)).getViewport().getView();
+                int row = -1;
+                for (int i = 0; i < table.getRowCount(); i++) {
+                    if (orderId.equals(table.getValueAt(i, 0).toString())) {
+                        row = i;
+                        break;
+                    }
+                }
+                
+                if (row == -1) {
+                    throw new IllegalStateException("Could not find order details in table");
+                }
+                
+                // Create JSON payload with all required fields
+                JSONObject jsonPayload = new JSONObject();
+                jsonPayload.put("userId", Long.parseLong(table.getValueAt(row, 1).toString())); // User ID
+                jsonPayload.put("orderDate", table.getValueAt(row, 2).toString()); // Order date
+                jsonPayload.put("totalAmount", new BigDecimal(table.getValueAt(row, 3).toString())); // Total amount
+                jsonPayload.put("status", newStatus); // New status
+                
+                System.out.println("Sending order update: " + jsonPayload.toString());
+                
                 try (OutputStream os = conn.getOutputStream()) {
-                    byte[] input = jsonInput.getBytes("utf-8");
-                    os.write(input, 0, input.length);
+                    os.write(jsonPayload.toString().getBytes(StandardCharsets.UTF_8));
                 }
 
                 int responseCode = conn.getResponseCode();
+                
+                // Read response body regardless of success/failure
+                String responseBody = "";
+                try (BufferedReader br = new BufferedReader(
+                    new InputStreamReader((responseCode >= 400) ? conn.getErrorStream() : conn.getInputStream()))) {
+                    String line;
+                    StringBuilder response = new StringBuilder();
+                    while ((line = br.readLine()) != null) {
+                        response.append(line);
+                    }
+                    responseBody = response.toString();
+                }
+                
                 if (responseCode == HttpURLConnection.HTTP_OK) {
                     JOptionPane.showMessageDialog(this, "Order status updated successfully!");
                     refreshOrdersData();
                 } else {
-                    JOptionPane.showMessageDialog(this, "Failed to update order status", "Error", JOptionPane.ERROR_MESSAGE);
+                    JOptionPane.showMessageDialog(this, "Failed to update order status: " + responseBody, 
+                        "Error", JOptionPane.ERROR_MESSAGE);
                 }
             } catch (Exception ex) {
                 JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
@@ -784,6 +836,7 @@ public class AdminPanel extends JPanel {
         panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         
         JTable table = new JTable(reviewsTableModel);
+        // Add Delete button
         table.getColumnModel().getColumn(5).setCellRenderer(new ButtonRenderer());
         table.getColumnModel().getColumn(5).setCellEditor(
             new ButtonEditor(new JCheckBox(), "Delete", e -> {
@@ -798,15 +851,10 @@ public class AdminPanel extends JPanel {
         JScrollPane scrollPane = new JScrollPane(table);
         panel.add(scrollPane, BorderLayout.CENTER);
         
-        // Add control buttons
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        JButton addButton = new JButton("Add Review");
+        // Add refresh button
         JButton refreshButton = new JButton("Refresh");
-        addButton.addActionListener(e -> showAddReviewDialog());
         refreshButton.addActionListener(e -> refreshReviewsData());
-        buttonPanel.add(addButton);
-        buttonPanel.add(refreshButton);
-        panel.add(buttonPanel, BorderLayout.SOUTH);
+        panel.add(refreshButton, BorderLayout.SOUTH);
         
         return panel;
     }
@@ -828,6 +876,7 @@ public class AdminPanel extends JPanel {
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
             conn.setRequestProperty("Authorization", "Bearer " + token);
+            conn.setRequestProperty("Refresh-Token", AuthManager.Refresh);
 
             int responseCode = conn.getResponseCode();
             if (responseCode == HttpURLConnection.HTTP_OK) {
@@ -849,8 +898,8 @@ public class AdminPanel extends JPanel {
                     JSONObject review = reviewsArray.getJSONObject(i);
                     model.addRow(new Object[]{
                         String.valueOf(review.get("id")),
-                        String.valueOf(review.get("userId")),
                         String.valueOf(review.get("productId")),
+                        String.valueOf(review.get("userId")),
                         review.getInt("rating"),
                         review.getString("review"),
                         "Delete"
@@ -974,18 +1023,13 @@ public class AdminPanel extends JPanel {
                 user.put("email", email);
                 user.put("password", password);
                 
-                // Create role array for roles field
+                // Create role array based on selection
                 JSONArray roles = new JSONArray();
-                roles.put("CUSTOMER"); // Base role
-                if ("VENDOR".equals(role)) {
-                    roles.put("VENDOR");
-                } else if ("ADMIN".equals(role)) {
-                    roles.put("VENDOR");
-                    roles.put("ADMIN");
+                String[] selectedRoles = role.split(",");
+                for (String r : selectedRoles) {
+                    roles.put(r.trim());
                 }
-                user.put("role", String.join(",", roles.toList().stream()
-                    .map(Object::toString)
-                    .toArray(String[]::new)));
+                user.put("role", roles);
                 
                 // Add user
                 addUser(user);
@@ -1106,13 +1150,12 @@ public class AdminPanel extends JPanel {
                 
                 // Create review object
                 JSONObject review = new JSONObject();
-                review.put("userId", userId);
-                review.put("productId", productId);
+                review.put("productId", Integer.parseInt(productId)); // Convert to integer
                 review.put("rating", rating);
-                review.put("review", reviewText);
+                review.put("review", reviewText); // Use 'review' field name
                 
-                // Add review
-                addReview(review);
+                // Add review for the specified user
+                addReview(review, userId);
                 dialog.dispose();
                 
             } catch (IllegalArgumentException ex) {
@@ -1133,28 +1176,231 @@ public class AdminPanel extends JPanel {
         dialog.setVisible(true);
     }
     
-    private void addReview(JSONObject review) {
+    private void showEditReviewDialog(String reviewId, String userId) {
+        JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "Edit Review", true);
+        dialog.setLayout(new BorderLayout());
+        dialog.setSize(400, 500);
+        dialog.setLocationRelativeTo(this);
+        
+        JPanel form = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(5, 5, 5, 5);
+        
+        // Add form fields
+        JTextField productIdField = new JTextField(20);
+        JSpinner ratingSpinner = new JSpinner(new SpinnerNumberModel(5, 1, 5, 1));
+        JTextArea reviewField = new JTextArea(5, 20);
+        reviewField.setLineWrap(true);
+        reviewField.setWrapStyleWord(true);
+        JScrollPane reviewScroll = new JScrollPane(reviewField);
+        
+        int gridy = 0;
+        
+        // Product ID
+        gbc.gridx = 0; gbc.gridy = gridy++;
+        form.add(new JLabel("Product ID:"), gbc);
+        gbc.gridx = 1;
+        form.add(productIdField, gbc);
+        
+        // Rating
+        gbc.gridx = 0; gbc.gridy = gridy++;
+        form.add(new JLabel("Rating (1-5):"), gbc);
+        gbc.gridx = 1;
+        form.add(ratingSpinner, gbc);
+        
+        // Review
+        gbc.gridx = 0; gbc.gridy = gridy++;
+        form.add(new JLabel("Review:"), gbc);
+        gbc.gridx = 1;
+        gbc.fill = GridBagConstraints.BOTH;
+        form.add(reviewScroll, gbc);
+        
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JButton saveButton = new JButton("Save");
+        JButton cancelButton = new JButton("Cancel");
+        
+        saveButton.addActionListener(e -> {
+            try {
+                // Validate inputs
+                String productId = productIdField.getText().trim();
+                int rating = (Integer) ratingSpinner.getValue();
+                String reviewText = reviewField.getText().trim();
+                
+                if (productId.isEmpty() || reviewText.isEmpty()) {
+                    throw new IllegalArgumentException("All fields are required");
+                }
+                
+                // Create review object
+                JSONObject review = new JSONObject();
+                review.put("productId", productId);
+                review.put("rating", rating);
+                review.put("text", reviewText); // Using 'text' instead of 'review' to match backend
+                
+                // Update review
+                updateReview(reviewId, userId, review);
+                dialog.dispose();
+                
+            } catch (IllegalArgumentException ex) {
+                JOptionPane.showMessageDialog(dialog,
+                    ex.getMessage(),
+                    "Validation Error",
+                    JOptionPane.ERROR_MESSAGE);
+            }
+        });
+        
+        cancelButton.addActionListener(e -> dialog.dispose());
+        
+        buttonPanel.add(saveButton);
+        buttonPanel.add(cancelButton);
+        
+        dialog.add(new JScrollPane(form), BorderLayout.CENTER);
+        dialog.add(buttonPanel, BorderLayout.SOUTH);
+        dialog.setVisible(true);
+    }
+
+    private void updateReview(String reviewId, String userId, JSONObject review) {
         new Thread(() -> {
             try {
-                URL url = URI.create("http://localhost:8080/admin/reviews").toURL();
+                // First try user-specific update
+                URL url = URI.create("http://localhost:8080/admin/reviews/users/" + userId).toURL();
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("POST");
+                conn.setRequestMethod("PUT");
                 conn.setRequestProperty("Authorization", "Bearer " + AuthManager.Token);
                 conn.setRequestProperty("Refresh-Token", AuthManager.Refresh);
                 conn.setRequestProperty("Content-Type", "application/json");
                 conn.setDoOutput(true);
                 
-                try (OutputStream os = conn.getOutputStream()) {
-                    os.write(review.toString().getBytes(StandardCharsets.UTF_8));
+                // Create review object matching backend format
+                JSONObject reviewObj = new JSONObject();
+                reviewObj.put("productId", review.getInt("productId")); // Note: productId as integer
+                reviewObj.put("rating", review.getInt("rating"));
+                reviewObj.put("review", review.getString("review")); // Use 'review' field name
+                reviewObj.put("date", java.time.OffsetDateTime.now().toString()); // Add current timestamp
+                if (reviewId != null) {
+                    reviewObj.put("id", reviewId);
                 }
                 
-                if (conn.getResponseCode() == 201) {
+                // Log the request payload
+                System.out.println("Sending review update request: " + reviewObj.toString());
+                
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(reviewObj.toString().getBytes(StandardCharsets.UTF_8));
+                }
+                
+                int responseCode = conn.getResponseCode();
+                if (responseCode == 200) {
+                    SwingUtilities.invokeLater(() -> {
+                        JOptionPane.showMessageDialog(this, "Review updated successfully!");
+                        refreshReviewsData();
+                    });
+                } else if (responseCode == 404) {
+                    // If user-specific update fails, try direct review update
+                    url = URI.create("http://localhost:8080/admin/reviews/" + reviewId + "/").toURL();
+                    conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("PUT");
+                    conn.setRequestProperty("Authorization", "Bearer " + AuthManager.Token);
+                    conn.setRequestProperty("Refresh-Token", AuthManager.Refresh);
+                    conn.setRequestProperty("Content-Type", "application/json");
+                    conn.setDoOutput(true);
+                    
+                    try (OutputStream os = conn.getOutputStream()) {
+                        // Create request array with single review
+                        JSONArray reviewArray = new JSONArray();
+                        reviewArray.put(review);
+                        os.write(reviewArray.toString().getBytes(StandardCharsets.UTF_8));
+                    }
+                    
+                    if (conn.getResponseCode() == 200) {
+                        SwingUtilities.invokeLater(() -> {
+                            JOptionPane.showMessageDialog(this, "Review updated successfully!");
+                            refreshReviewsData();
+                        });
+                    } else {
+                        throw new IOException("Server returned code: " + conn.getResponseCode());
+                    }
+                } else {
+                    throw new IOException("Server returned code: " + responseCode);
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                SwingUtilities.invokeLater(() -> 
+                    JOptionPane.showMessageDialog(this, "Error updating review: " + e.getMessage())
+                );
+            }
+        }).start();
+    }
+
+    private void addReview(JSONObject review, String userId) {
+        new Thread(() -> {
+            try {
+                // Remove any trailing slash from userId
+                String cleanUserId = userId.endsWith("/") ? userId.substring(0, userId.length() - 1) : userId;
+                URL url = URI.create("http://localhost:8080/admin/reviews/users/" + cleanUserId).toURL();
+                System.out.println("Making request to URL: " + url);
+                
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                
+                // Ensure we have a valid token
+                if (AuthManager.Token == null) {
+                    throw new IllegalStateException("No authentication token available");
+                }
+                
+                // Set all required headers
+                String authHeader = "Bearer " + AuthManager.Token;
+                System.out.println("Using Authorization header: " + authHeader);
+                conn.setRequestProperty("Authorization", authHeader);
+                conn.setRequestProperty("Refresh-Token", AuthManager.Refresh);
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setDoOutput(true);
+                
+                System.out.println("Request headers:");
+                conn.getRequestProperties().forEach((key, value) -> 
+                    System.out.println(key + ": " + value));
+                
+                // Create review object matching backend format
+                JSONObject reviewObj = new JSONObject();
+                reviewObj.put("productId", review.getInt("productId")); // Note: productId as integer
+                reviewObj.put("rating", review.getInt("rating"));
+                reviewObj.put("review", review.getString("review")); // Use 'review' instead of 'text'
+                reviewObj.put("date", java.time.OffsetDateTime.now().toString()); // Add current timestamp
+                
+                // Log the request payload
+                System.out.println("Sending review request: " + reviewObj.toString());
+                
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(reviewObj.toString().getBytes(StandardCharsets.UTF_8));
+                }
+                
+                int responseCode = conn.getResponseCode();
+                System.out.println("Response code: " + responseCode);
+                
+                // Read the response body for both success and error cases
+                InputStream inputStream = (responseCode >= 400) 
+                    ? conn.getErrorStream() 
+                    : conn.getInputStream();
+                    
+                String responseBody = "";
+                if (inputStream != null) {
+                    try (BufferedReader br = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+                        StringBuilder response = new StringBuilder();
+                        String line;
+                        while ((line = br.readLine()) != null) {
+                            response.append(line);
+                        }
+                        responseBody = response.toString();
+                    }
+                }
+                System.out.println("Response body: " + responseBody);
+                
+                if (responseCode == 201) {
                     SwingUtilities.invokeLater(() -> {
                         JOptionPane.showMessageDialog(this, "Review added successfully!");
                         refreshReviewsData();
                     });
                 } else {
-                    throw new IOException("Server returned code: " + conn.getResponseCode());
+                    throw new IOException("Server returned code: " + responseCode + ", Response: " + responseBody);
                 }
             } catch (Exception e) {
                 e.printStackTrace();
@@ -1185,7 +1431,7 @@ public class AdminPanel extends JPanel {
         if (newRole != null && !newRole.equals(currentRole)) {
             new Thread(() -> {
                 try {
-                    URL url = URI.create("http://localhost:8080/api/admin/users/" + userId + "/role").toURL();
+                    URL url = URI.create("http://localhost:8080/admin/users/" + userId + "/role").toURL();
                     HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                     conn.setRequestMethod("PUT");
                     conn.setRequestProperty("Authorization", "Bearer " + AuthManager.Token);
