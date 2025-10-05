@@ -8,6 +8,7 @@ import java.io.*;
 import java.net.*;
 import org.json.*;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class AdminPanel extends JPanel {
     @SuppressWarnings("unused")
@@ -198,12 +199,36 @@ public class AdminPanel extends JPanel {
      */
     public void refreshData() {
         System.out.println("Starting data refresh for all panels...");
-        refreshUsersData();
-        refreshProductsData();
-        refreshOrdersData();
-        refreshReviewsData();
-        refreshStatistics();
-        System.out.println("Data refresh completed.");
+        
+        // Create a counter for completed data loads
+        AtomicInteger completedLoads = new AtomicInteger(0);
+        Runnable checkCompletion = () -> {
+            if (completedLoads.incrementAndGet() == 4) { // After all 4 data loads complete
+                refreshStatistics(); // Update statistics
+                System.out.println("Data refresh completed.");
+            }
+        };
+
+        // Start all data loads in parallel
+        new Thread(() -> {
+            refreshUsersData();
+            SwingUtilities.invokeLater(checkCompletion);
+        }).start();
+        
+        new Thread(() -> {
+            refreshProductsData();
+            SwingUtilities.invokeLater(checkCompletion);
+        }).start();
+        
+        new Thread(() -> {
+            refreshOrdersData();
+            SwingUtilities.invokeLater(checkCompletion);
+        }).start();
+        
+        new Thread(() -> {
+            refreshReviewsData();
+            SwingUtilities.invokeLater(checkCompletion);
+        }).start();
     }
     
     private void refreshUsersData() {
@@ -249,40 +274,30 @@ public class AdminPanel extends JPanel {
         }).start();
     }
     
-
-    
     private void refreshStatistics() {
         if (statsPanel == null) {
             System.err.println("Stats panel not initialized");
             return;
         }
 
-        new Thread(() -> {
-            try {
-                URL url = URI.create("http://localhost:8080/admin/statistics").toURL();
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("GET");
-                conn.setRequestProperty("Authorization", "Bearer " + AuthManager.Token);
-                conn.setRequestProperty("Refresh-Token", AuthManager.Refresh);
-                
-                if (conn.getResponseCode() == 200) {
-                    String response = readInputStream(conn.getInputStream());
-                    JSONObject stats = new JSONObject(response);
-                    
-                    SwingUtilities.invokeLater(() -> {
-                        JPanel statsGrid = (JPanel) statsPanel.getComponent(0);
-                        ((JLabel) statsGrid.getComponent(1)).setText(String.valueOf(stats.getInt("totalUsers")));
-                        ((JLabel) statsGrid.getComponent(3)).setText(String.valueOf(stats.getInt("totalProducts")));
-                        ((JLabel) statsGrid.getComponent(5)).setText(String.valueOf(stats.getInt("totalOrders")));
-                    });
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-                SwingUtilities.invokeLater(() -> 
-                    JOptionPane.showMessageDialog(this, "Error loading statistics: " + e.getMessage())
-                );
-            }
-        }).start();
+        // We'll calculate statistics from data we already have in our tables
+        SwingUtilities.invokeLater(() -> {
+            JPanel statsGrid = (JPanel) statsPanel.getComponent(0);
+            
+            // Count total users
+            int totalUsers = usersTableModel.getRowCount();
+            ((JLabel) statsGrid.getComponent(1)).setText(String.valueOf(totalUsers));
+            
+            // Count total products
+            int totalProducts = productsTableModel.getRowCount();
+            ((JLabel) statsGrid.getComponent(3)).setText(String.valueOf(totalProducts));
+            
+            // Count total orders
+            int totalOrders = ordersTableModel.getRowCount();
+            ((JLabel) statsGrid.getComponent(5)).setText(String.valueOf(totalOrders));
+            
+            System.out.println("Statistics updated from table data");
+        });
     }
     
 
