@@ -551,14 +551,66 @@ public class CartPage extends JPanel {
 
         checkoutButton.setText("Checkout");
         checkoutButton.setFont(new java.awt.Font("Segoe UI", 0, 14));
-        checkoutButton.addActionListener(new java.awt.event.ActionListener() {
-            public void actionPerformed(java.awt.event.ActionEvent evt) {
-                int confirm = JOptionPane.showConfirmDialog(CartPage.this, "Proceed to checkout?", "Checkout", JOptionPane.YES_NO_OPTION);
-                if (confirm == JOptionPane.YES_OPTION) {
-                    parent.showPage("BILLING");
+        checkoutButton.addActionListener(evt -> {
+            int confirm = JOptionPane.showConfirmDialog(CartPage.this, "Proceed to checkout?", "Checkout", JOptionPane.YES_NO_OPTION);
+            if (confirm != JOptionPane.YES_OPTION) return;
+
+            new Thread(() -> {
+                try {
+                    // Build payload from cartModel
+                    JSONArray arr = new JSONArray();
+                    java.util.List<JSONObject> snapshot =cartModel.getItems(); 
+                    for (JSONObject it : snapshot) {
+                        JSONObject o = new JSONObject();
+                        o.put("productId", it.opt("productId"));
+                        o.put("quantity", it.optInt("quantity", 1));
+                        arr.put(o);
+                    }
+
+                    JSONObject body = new JSONObject();
+                    body.put("items", arr);
+
+                    URL url = new URL("http://localhost:8080/orders");
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("POST");
+                    conn.setRequestProperty("Content-Type", "application/json");
+                    if (AuthManager.Token != null && !AuthManager.Token.isEmpty())
+                        conn.setRequestProperty("Authorization", "Bearer " + AuthManager.Token);
+                    conn.setDoOutput(true);
+
+                    try (OutputStream os = conn.getOutputStream()) {
+                        os.write(body.toString().getBytes(StandardCharsets.UTF_8));
+                    }
+
+                    int rc = conn.getResponseCode();
+                    String resp;
+                    try (InputStream is = (rc >= 200 && rc < 300) ? conn.getInputStream() : conn.getErrorStream()) {
+                        resp = new BufferedReader(new InputStreamReader(is)).lines().reduce("", (a,b) -> a+b);
+                    }
+                    conn.disconnect();
+
+                    if (rc >= 200 && rc < 300) {
+                        JSONObject jsonResp = new JSONObject(resp);
+                        long orderId = jsonResp.optLong("orderId", jsonResp.optLong("id", -1));
+                        if (orderId == -1) throw new Exception("No orderId returned");
+
+                        // Switch to BillingPanel on EDT
+                        SwingUtilities.invokeLater(() -> parent.openBillingWithOrder(orderId));
+                    } else {
+                        SwingUtilities.invokeLater(() -> 
+                            JOptionPane.showMessageDialog(CartPage.this, "Failed to create order: " + rc + "\n" + resp)
+                        );
+                    }
+
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                    SwingUtilities.invokeLater(() -> 
+                        JOptionPane.showMessageDialog(CartPage.this, "Error creating order: " + ex.getMessage())
+                    );
                 }
-            }
+            }, "CartPage-checkout").start();
         });
+
 
         javax.swing.GroupLayout bottomLayout = new javax.swing.GroupLayout(bottomPanel);
         bottomPanel.setLayout(bottomLayout);

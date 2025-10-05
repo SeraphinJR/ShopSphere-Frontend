@@ -89,6 +89,24 @@ public class MainFrame extends JFrame {
         cardPanel.add(panel, name);
     }
 
+    public BillingPanel getBillingPanel() {
+        return (BillingPanel) pages.get("BILLING"); // assuming you store panels in a Map<String, JPanel> called pages
+    }
+
+    /** Show the billing page and set the order id on the BillingPanel so it can start payment. */
+    public void openBillingWithOrder(Long orderId) {
+        JPanel p = pages.get("BILLING");
+        if (p instanceof BillingPanel) {
+            BillingPanel bp = (BillingPanel) p;
+            // setExistingOrderId triggers the payment-init for that order (your BillingPanel already auto-starts)
+            bp.setExistingOrderId(orderId);
+            showPage("BILLING");
+        } else {
+            // Fallback: if billing panel not present, just show it (it should be created at startup)
+            showPage("BILLING");
+        }
+    }
+
     /**
      * Shows a page and appends to history.
      * Lazily creates vendor page if requested.
