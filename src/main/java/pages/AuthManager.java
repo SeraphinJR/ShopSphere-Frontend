@@ -11,3 +11,4 @@ package pages;
 public class AuthManager {
     public static String Token;
     public static String Refresh;
+}
