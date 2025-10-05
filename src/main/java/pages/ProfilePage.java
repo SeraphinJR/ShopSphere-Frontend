@@ -32,11 +32,6 @@ public class ProfilePage extends JPanel {
         this.parent = parent;
         this.cartModel = cartModel;
         init();
-        // apply theme styling
-        try {
-            Theme.styleComponentTree(this);
-        } catch (Throwable ignored) {
-        }
         fetchProfileAsync();
     }
 
@@ -242,17 +237,13 @@ public class ProfilePage extends JPanel {
         // needed.
 
         if (!photoUrl.isEmpty()) {
-            // try to load image via HttpUtil to avoid URL deprecation issues
+            // try to load image
             SwingWorker<BufferedImage, Void> w = new SwingWorker<>() {
                 @Override
                 protected BufferedImage doInBackground() throws Exception {
                     try {
-                        byte[] bytes = HttpUtil.getBytes(photoUrl, null);
-                        if (bytes == null || bytes.length == 0)
-                            return null;
-                        try (java.io.ByteArrayInputStream bis = new java.io.ByteArrayInputStream(bytes)) {
-                            return ImageIO.read(bis);
-                        }
+                        URL u = new URL(photoUrl);
+                        return ImageIO.read(u);
                     } catch (Exception ex) {
                         return null;
                     }

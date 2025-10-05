@@ -12,15 +12,11 @@ public class OrdersPage extends JPanel {
         this.parent = parent;
         this.cartModel = cartModel;
         init();
-        try {
-            Theme.styleComponentTree(this);
-        } catch (Throwable ignored) {
-        }
     }
 
     private void init() {
         setLayout(new BorderLayout());
-        setBackground(Color.BLACK);
+        setBackground(Color.WHITE);
         JLabel lbl = new JLabel("Orders", SwingConstants.CENTER);
         lbl.setFont(new Font("Segoe UI", Font.BOLD, 20));
         add(lbl, BorderLayout.NORTH);

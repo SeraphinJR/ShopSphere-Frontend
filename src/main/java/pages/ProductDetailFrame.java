@@ -18,10 +18,8 @@ import org.json.*;
  * Assumptions:
  * - GET /products/{id} returns a JSON object containing the product fields.
  * - GET /products/{id}/reviews returns JSON array of review objects:
- * { "id": 123, "userId": 12, "userName": "Alice", "rating": 4.5, "text": "...",
- * "createdAt": "..." }
- * - POST /products/{id}/reviews { rating, text } creates a review (requires
- * Authorization header)
+ *     { "id": 123, "userId": 12, "userName": "Alice", "rating": 4.5, "text": "...", "createdAt": "..." }
+ * - POST /products/{id}/reviews { rating, text } creates a review (requires Authorization header)
  * - PUT /reviews/{reviewId} { rating, text } edits a review
  * - DELETE /reviews/{reviewId} deletes a review
  *
@@ -44,14 +42,11 @@ public class ProductDetailFrame extends JFrame {
     private JTextArea reviewTextArea;
     private JButton postReviewBtn;
 
+
     public ProductDetailFrame(String productId) {
         super("Product details");
         this.productId = productId;
         initUI();
-        try {
-            Theme.styleComponentTree(this.getContentPane());
-        } catch (Throwable ignored) {
-        }
         fetchProductAndPopulate();
         fetchReviewsAndPopulate();
         setSize(860, 720);
@@ -61,14 +56,9 @@ public class ProductDetailFrame extends JFrame {
     private void initUI() {
         setLayout(new BorderLayout(8, 8));
 
-        try {
-            getContentPane().setBackground(Color.BLACK);
-        } catch (Throwable ignored) {
-        }
-
         // Top: title + image + prices
         JPanel top = new JPanel(new BorderLayout(8, 8));
-        top.setBorder(BorderFactory.createEmptyBorder(8, 8, 0, 8));
+        top.setBorder(BorderFactory.createEmptyBorder(8,8,0,8));
         JPanel left = new JPanel(new BorderLayout());
         left.setPreferredSize(new Dimension(320, 320));
         imageLabel.setHorizontalAlignment(SwingConstants.CENTER);
@@ -89,24 +79,21 @@ public class ProductDetailFrame extends JFrame {
         descArea.setOpaque(false);
 
         right.add(titleLabel);
-        right.add(Box.createRigidArea(new Dimension(0, 6)));
+        right.add(Box.createRigidArea(new Dimension(0,6)));
         right.add(priceLabel);
-        right.add(Box.createRigidArea(new Dimension(0, 4)));
+        right.add(Box.createRigidArea(new Dimension(0,4)));
         right.add(originalPriceLabel);
-        right.add(Box.createRigidArea(new Dimension(0, 8)));
-        right.add(new JScrollPane(descArea, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
-                JScrollPane.HORIZONTAL_SCROLLBAR_NEVER) {
-            {
-                setPreferredSize(new Dimension(400, 140));
-                setBorder(null);
-                setOpaque(false);
-                getViewport().setOpaque(false);
-            }
-        });
-        right.add(Box.createRigidArea(new Dimension(0, 8)));
+        right.add(Box.createRigidArea(new Dimension(0,8)));
+        right.add(new JScrollPane(descArea, JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED, JScrollPane.HORIZONTAL_SCROLLBAR_NEVER) {{
+            setPreferredSize(new Dimension(400, 140));
+            setBorder(null);
+            setOpaque(false);
+            getViewport().setOpaque(false);
+        }});
+        right.add(Box.createRigidArea(new Dimension(0,8)));
         metaLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         right.add(metaLabel);
-        right.add(Box.createRigidArea(new Dimension(0, 8)));
+        right.add(Box.createRigidArea(new Dimension(0,8)));
         right.add(new JLabel("Features:"));
         right.add(featuresPanel);
 
@@ -121,9 +108,10 @@ public class ProductDetailFrame extends JFrame {
         reviewsScroll.getVerticalScrollBar().setUnitIncrement(16);
         reviewsScroll.setPreferredSize(new Dimension(0, 400)); // or 350/400 if you want more space
 
+
         // South: review composer
-        JPanel composer = new JPanel(new BorderLayout(8, 8));
-        composer.setBorder(BorderFactory.createEmptyBorder(8, 8, 8, 8));
+        JPanel composer = new JPanel(new BorderLayout(8,8));
+        composer.setBorder(BorderFactory.createEmptyBorder(8,8,8,8));
         JPanel composerTop = new JPanel(new FlowLayout(FlowLayout.LEFT));
         composerTop.add(new JLabel("Your rating:"));
         ratingSpinner = new JSpinner(new SpinnerNumberModel(5.0, 0.5, 5.0, 0.5));
@@ -157,7 +145,7 @@ public class ProductDetailFrame extends JFrame {
                 URL url = new URL("http://localhost:8080/products/" + productId);
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
-                conn.setRequestProperty("Accept", "application/json");
+                conn.setRequestProperty("Accept","application/json");
                 int rc = conn.getResponseCode();
                 if (rc >= 200 && rc < 300) {
                     String body = readStream(conn.getInputStream());
@@ -179,14 +167,12 @@ public class ProductDetailFrame extends JFrame {
                         titleLabel.setText(name);
                         priceLabel.setText(String.format("$ %.2f", price));
                         if (originalPrice > 0 && originalPrice > price) {
-                            originalPriceLabel
-                                    .setText(String.format("<html><strike>$ %.2f</strike></html>", originalPrice));
+                            originalPriceLabel.setText(String.format("<html><strike>$ %.2f</strike></html>", originalPrice));
                         } else {
                             originalPriceLabel.setText("");
                         }
                         descArea.setText(description);
-                        metaLabel.setText(String.format("Category: %s   Rating: %.1f (%d)   %s", category, rating,
-                                reviewCount, inStock ? "In stock" : "Out of stock"));
+                        metaLabel.setText(String.format("Category: %s   Rating: %.1f (%d)   %s", category, rating, reviewCount, inStock ? "In stock" : "Out of stock"));
 
                         featuresPanel.removeAll();
                         if (features != null) {
@@ -212,28 +198,23 @@ public class ProductDetailFrame extends JFrame {
                             } else {
                                 // try local resource, else server static path
                                 InputStream is = getClass().getResourceAsStream("/images/" + image);
-                                if (is != null)
-                                    img = ImageIO.read(is);
-                                else
-                                    img = ImageIO.read(new URL("http://localhost:8080/uploads/" + image));
+                                if (is != null) img = ImageIO.read(is);
+                                else img = ImageIO.read(new URL("http://localhost:8080/uploads/" + image));
                             }
                             if (img != null) {
                                 Image scaled = img.getScaledInstance(300, 300, Image.SCALE_SMOOTH);
                                 SwingUtilities.invokeLater(() -> imageLabel.setIcon(new ImageIcon(scaled)));
                             }
-                        } catch (Exception ignored) {
-                        }
+                        } catch (Exception ignored) {}
                     }
 
                 } else {
                     String err = readStream(conn.getErrorStream());
-                    SwingUtilities.invokeLater(
-                            () -> JOptionPane.showMessageDialog(this, "Failed to load product: " + rc + "\n" + err));
+                    SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, "Failed to load product: " + rc + "\n" + err));
                 }
                 conn.disconnect();
             } catch (Exception ex) {
-                SwingUtilities.invokeLater(
-                        () -> JOptionPane.showMessageDialog(this, "Error loading product: " + ex.getMessage()));
+                SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, "Error loading product: " + ex.getMessage()));
             }
         }).start();
     }
@@ -241,10 +222,10 @@ public class ProductDetailFrame extends JFrame {
     private void fetchReviewsAndPopulate() {
         new Thread(() -> {
             try {
-                URL url = new URL("http://localhost:8080/reviews/products/" + productId);
+                URL url = new URL("http://localhost:8080/reviews/products/" + productId );
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
-                conn.setRequestProperty("Accept", "application/json");
+                conn.setRequestProperty("Accept","application/json");
                 int rc = conn.getResponseCode();
                 if (rc >= 200 && rc < 300) {
                     String body = readStream(conn.getInputStream());
@@ -256,7 +237,7 @@ public class ProductDetailFrame extends JFrame {
                             JSONObject r = arr.getJSONObject(i);
                             JPanel rRow = makeReviewRow(r);
                             reviewsPanel.add(rRow);
-                            reviewsPanel.add(Box.createRigidArea(new Dimension(0, 8)));
+                            reviewsPanel.add(Box.createRigidArea(new Dimension(0,8)));
                         }
                         reviewsPanel.revalidate();
                         reviewsPanel.repaint();
@@ -286,11 +267,12 @@ public class ProductDetailFrame extends JFrame {
         JPanel p = new JPanel(new BorderLayout(8, 4));
         p.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(Color.LIGHT_GRAY),
-                BorderFactory.createEmptyBorder(6, 6, 6, 6)));
+                BorderFactory.createEmptyBorder(6,6,6,6)
+        ));
         p.setBackground(Color.WHITE);
-
-        String userName = r.optString(r.getLong("userId") + "", r.optString("user", "User"));
-        double rating = r.optDouble("rating", r.optDouble("rating", 0.0));
+        
+        String userName = r.optString(r.getLong("userId")+"", r.optString("user", "User"));
+        double rating = r.optDouble("rating",  r.optDouble("rating", 0.0));
         String text = r.optString("review", r.optString("comment", ""));
         long reviewId = r.optLong("id", -1);
         long userId = r.optLong("userId", -1);
@@ -307,21 +289,23 @@ public class ProductDetailFrame extends JFrame {
         body.setBackground(Color.WHITE);
         body.setBorder(null);
 
+
         p.add(head, BorderLayout.NORTH);
-        body.setPreferredSize(new Dimension(0, 50));
-        p.add(body, BorderLayout.CENTER);
-        JSONArray ours = new JSONArray();
-        try {
-            URL url = new URL("http://localhost:8080/reviews/user");
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        body.setPreferredSize(new Dimension(0,50));
+        p.add(body,BorderLayout.CENTER);
+        JSONArray ours=new JSONArray();
+        try{
+            URL url=new URL("http://localhost:8080/reviews/user");
+            HttpURLConnection conn=(HttpURLConnection)url.openConnection();
             conn.setRequestMethod("GET");
             conn.setRequestProperty("Accept", "application/json");
-            conn.setRequestProperty("Authorization", "Bearer " + AuthManager.Token);
+            conn.setRequestProperty("Authorization", "Bearer "+AuthManager.Token);
             conn.setRequestProperty("Refresh-Token", AuthManager.Refresh);
-            int rc = conn.getResponseCode();
-            if (!(rc >= 200 && rc < 300)) {
-                System.out.println("Error:" + rc);
-            } else {
+            int rc=conn.getResponseCode();
+            if(!(rc>=200 && rc<300)){
+                System.out.println("Error:"+rc);
+            }
+            else{
                 BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
                 StringBuilder response = new StringBuilder();
                 String line;
@@ -329,15 +313,14 @@ public class ProductDetailFrame extends JFrame {
                     response.append(line);
                 }
                 in.close();
-
-                ours = new JSONArray(response.toString());
+                
+                ours=new JSONArray(response.toString());
             }
-        } catch (Exception e) {
-        }
-        for (int i = 0; i < ours.length(); i++) {
-            JSONObject rev = ours.getJSONObject(i);
-            if (rev.getLong("userId") == userId) {
-                JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 2));
+        }catch(Exception e){}
+        for (int i=0;i<ours.length();i++){
+            JSONObject rev=ours.getJSONObject(i);
+            if(rev.getLong("userId")==userId){
+                JPanel actions = new JPanel(new FlowLayout(FlowLayout.RIGHT,6,2));
                 JButton editBtn = new JButton("Edit");
                 JButton delBtn = new JButton("Delete");
                 actions.add(editBtn);
@@ -346,8 +329,7 @@ public class ProductDetailFrame extends JFrame {
 
                 editBtn.addActionListener(e -> showEditDialogAndUpdate(reviewId, rating, text));
                 delBtn.addActionListener(e -> {
-                    int conf = JOptionPane.showConfirmDialog(this, "Delete your review?", "Confirm",
-                            JOptionPane.YES_NO_OPTION);
+                    int conf = JOptionPane.showConfirmDialog(this, "Delete your review?", "Confirm", JOptionPane.YES_NO_OPTION);
                     if (conf == JOptionPane.YES_OPTION) {
                         deleteReviewAsync(reviewId);
                     }
@@ -360,7 +342,7 @@ public class ProductDetailFrame extends JFrame {
 
     // show a small dialog to edit review, then call PUT
     private void showEditDialogAndUpdate(long reviewId, double currentRating, String currentText) {
-        JPanel panel = new JPanel(new BorderLayout(6, 6));
+        JPanel panel = new JPanel(new BorderLayout(6,6));
         JSpinner sp = new JSpinner(new SpinnerNumberModel(currentRating, 0.5, 5.0, 0.5));
         JTextArea ta = new JTextArea(currentText, 6, 40);
         panel.add(new JLabel("Rating:"), BorderLayout.NORTH);
@@ -392,9 +374,9 @@ public class ProductDetailFrame extends JFrame {
                 conn.setRequestMethod("POST");
                 conn.setRequestProperty("Content-Type", "application/json");
                 String token = AuthManager.Token;
-                if (token != null && !token.isEmpty()) {
+                if (token != null && !token.isEmpty()){
                     conn.setRequestProperty("Authorization", "Bearer " + token);
-                    conn.setRequestProperty("Refresh-Token", AuthManager.Refresh);
+                    conn.setRequestProperty("Refresh-Token",AuthManager.Refresh);
                 }
                 conn.setDoOutput(true);
 
@@ -407,8 +389,7 @@ public class ProductDetailFrame extends JFrame {
                 }
 
                 int rc = conn.getResponseCode();
-                String resp = rc >= 200 && rc < 300 ? readStream(conn.getInputStream())
-                        : readStream(conn.getErrorStream());
+                String resp = rc>=200 && rc<300 ? readStream(conn.getInputStream()) : readStream(conn.getErrorStream());
                 conn.disconnect();
 
                 if (rc >= 200 && rc < 300) {
@@ -443,9 +424,9 @@ public class ProductDetailFrame extends JFrame {
                 conn.setRequestMethod("PUT");
                 conn.setRequestProperty("Content-Type", "application/json");
                 String token = AuthManager.Token;
-                if (token != null && !token.isEmpty()) {
+                if (token != null && !token.isEmpty()){
                     conn.setRequestProperty("Authorization", "Bearer " + token);
-                    conn.setRequestProperty("Refresh-Token", AuthManager.Refresh);
+                    conn.setRequestProperty("Refresh-Token",AuthManager.Refresh);
                 }
                 conn.setDoOutput(true);
 
@@ -458,8 +439,7 @@ public class ProductDetailFrame extends JFrame {
                 }
 
                 int rc = conn.getResponseCode();
-                String resp = rc >= 200 && rc < 300 ? readStream(conn.getInputStream())
-                        : readStream(conn.getErrorStream());
+                String resp = rc>=200 && rc<300 ? readStream(conn.getInputStream()) : readStream(conn.getErrorStream());
                 conn.disconnect();
 
                 SwingUtilities.invokeLater(() -> {
@@ -471,8 +451,7 @@ public class ProductDetailFrame extends JFrame {
                     }
                 });
             } catch (Exception ex) {
-                SwingUtilities.invokeLater(
-                        () -> JOptionPane.showMessageDialog(this, "Error updating review: " + ex.getMessage()));
+                SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, "Error updating review: " + ex.getMessage()));
             }
         }).start();
     }
@@ -490,8 +469,7 @@ public class ProductDetailFrame extends JFrame {
                     conn.setRequestProperty("Refresh-Token", AuthManager.Refresh);
                 }
                 int rc = conn.getResponseCode();
-                String resp = rc >= 200 && rc < 300 ? readStream(conn.getInputStream())
-                        : readStream(conn.getErrorStream());
+                String resp = rc>=200 && rc<300 ? readStream(conn.getInputStream()) : readStream(conn.getErrorStream());
                 conn.disconnect();
 
                 SwingUtilities.invokeLater(() -> {
@@ -503,20 +481,17 @@ public class ProductDetailFrame extends JFrame {
                     }
                 });
             } catch (Exception ex) {
-                SwingUtilities.invokeLater(
-                        () -> JOptionPane.showMessageDialog(this, "Error deleting review: " + ex.getMessage()));
+                SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, "Error deleting review: " + ex.getMessage()));
             }
         }).start();
     }
 
     private static String readStream(InputStream is) throws IOException {
-        if (is == null)
-            return "";
+        if (is == null) return "";
         try (BufferedReader br = new BufferedReader(new InputStreamReader(is, "utf-8"))) {
             StringBuilder sb = new StringBuilder();
             String line;
-            while ((line = br.readLine()) != null)
-                sb.append(line);
+            while ((line = br.readLine()) != null) sb.append(line);
             return sb.toString();
         }
     }
