@@ -2,25 +2,30 @@ package pages;
 
 import javax.swing.*;
 import java.awt.*;
-import java.awt.event.ActionEvent;
-import java.awt.event.InputEvent;
-import java.awt.event.KeyEvent;
-import java.util.ArrayList;
-import java.util.List;
+import java.awt.event.*;
+import java.util.*;
 import model.CartModel;
 
+/**
+ * MainFrame - keeps single instances of pages, uses CardLayout.show(...)
+ * and provides helpers to refresh home quietly.
+ */
 public class MainFrame extends JFrame {
-    private CardLayout cardLayout;
-    private JPanel cardPanel;
-    private JToolBar navBar;
-    private JButton backBtn;
-    private JButton forwardBtn;
-    private JButton homeBtn;
-    private JLabel pageLabel;
+    private final CardLayout cardLayout;
+    private final JPanel cardPanel;
+    private final JToolBar navBar;
+    private final JButton backBtn;
+    private final JButton forwardBtn;
+    private final JButton homeBtn;
+    private final JLabel pageLabel;
     private final CartModel cartModel = new CartModel();
+
+    // pages map keeps single instances
+    private final Map<String, JPanel> pages = new HashMap<>();
+
     // navigation history
-    private final List<String> history = new ArrayList<>();
-    private int historyIndex = -1; // -1 means no entry yet
+    private final java.util.List<String> history = new ArrayList<>();
+    private int historyIndex = -1;
 
     public MainFrame() {
         setTitle("ShopSphere");
@@ -31,7 +36,7 @@ public class MainFrame extends JFrame {
         cardLayout = new CardLayout();
         cardPanel = new JPanel(cardLayout);
 
-        // navigation toolbar
+        // nav bar
         navBar = new JToolBar();
         navBar.setFloatable(false);
         backBtn = new JButton("◀");
@@ -50,33 +55,42 @@ public class MainFrame extends JFrame {
         navBar.add(homeBtn);
         navBar.addSeparator(new Dimension(12, 0));
         navBar.add(pageLabel);
-        BillingPanel billingPanel = new BillingPanel(this, cartModel);
 
-        // Add pages
-        cardPanel.add(new HomePage(this, cartModel), "HOME");
-        cardPanel.add(new CartPage(this, cartModel), "CART");
-        cardPanel.add(billingPanel, "BILLING");
-        cardPanel.add(new OrdersPanel(this), "ORDERS");
-        cardPanel.add(new ProfilePage(this, cartModel), "PROFILE");
-        cardPanel.add(new VendorDashboard(this, cartModel), "VENDOR");
+        // create pages once and add to cardPanel
+        pages.put("HOME", new HomePage(this, cartModel));
+        pages.put("CART", new CartPage(this, cartModel));
+        pages.put("BILLING", new BillingPanel(this, cartModel));
+        pages.put("ORDERS", new OrdersPanel(this));
+        pages.put("PROFILE", new ProfilePage(this, cartModel));
+        pages.put("VENDOR", new VendorDashboard(this));
+
+        for (Map.Entry<String, JPanel> e : pages.entrySet()) {
+            cardPanel.add(e.getValue(), e.getKey());
+        }
 
         setLayout(new BorderLayout());
         add(navBar, BorderLayout.NORTH);
         add(cardPanel, BorderLayout.CENTER);
 
-        // setup global keybindings for back/forward
+        // show home as initial page and record it in history
+        showPage("HOME");
+
+        // keyboard shortcuts
         setupKeyBindings();
     }
 
     /**
-     * Show a page and record it in navigation history.
+     * Shows a page and appends to history.
      */
     public void showPage(String pageName) {
-        // if we're not at the end of history, drop forward entries
+        if (!pages.containsKey(pageName)) {
+            System.err.println("Unknown page: " + pageName);
+            return;
+        }
+
+        // trim forward history if needed
         if (historyIndex < history.size() - 1) {
-            // remove everything after historyIndex
-            while (history.size() - 1 > historyIndex)
-                history.remove(history.size() - 1);
+            while (history.size() - 1 > historyIndex) history.remove(history.size() - 1);
         }
         history.add(pageName);
         historyIndex = history.size() - 1;
@@ -84,60 +98,25 @@ public class MainFrame extends JFrame {
         updateNavButtons();
     }
 
-    // internal method to display a page without modifying history (used for
-    // back/forward)
+    /**
+     * Display page without modifying history (used by back/forward).
+     */
     private void displayPage(String pageName) {
-        cardPanel.removeAll();
-
-        switch (pageName) {
-            case "BILLING":
-                cardPanel.add(new BillingPanel(this, cartModel)); // new instance each time
-                break;
-            case "CART":
-                cardPanel.add(new CartPage(this, cartModel));
-                break;
-            case "ORDERS":
-                cardPanel.add(new OrdersPanel(this));
-                break;
-            case "PROFILE":
-                cardPanel.add(new ProfilePage(this, cartModel));
-                break;
-            case "VENDOR":
-                cardPanel.add(new VendorDashboard(this, cartModel));
-                break;
-            case "HOME":
-            default:
-                cardPanel.add(new HomePage(this, cartModel));
-                break;
-        }
-
-        cardPanel.revalidate();
-        cardPanel.repaint();
+        if (!pages.containsKey(pageName)) return;
+        cardLayout.show(cardPanel, pageName);
         setPageTitle(pageName);
         updateNavButtons();
     }
 
     private void setPageTitle(String pageName) {
         switch (pageName) {
-            case "CART":
-                pageLabel.setText("Cart");
-                break;
-            case "ORDERS":
-                pageLabel.setText("Orders");
-                break;
-            case "PROFILE":
-                pageLabel.setText("Profile");
-                break;
-            case "VENDOR":
-                pageLabel.setText("Vendor Dashboard");
-                break;
-            case "BILLING":
-                pageLabel.setText("Billing");
-                break;
+            case "CART": pageLabel.setText("Cart"); break;
+            case "ORDERS": pageLabel.setText("Orders"); break;
+            case "PROFILE": pageLabel.setText("Profile"); break;
+            case "VENDOR": pageLabel.setText("Vendor Dashboard"); break;
+            case "BILLING": pageLabel.setText("Billing"); break;
             case "HOME":
-            default:
-                pageLabel.setText("Home");
-                break;
+            default: pageLabel.setText("Home"); break;
         }
     }
 
@@ -146,28 +125,19 @@ public class MainFrame extends JFrame {
         forwardBtn.setEnabled(historyIndex < history.size() - 1);
     }
 
-    /**
-     * Go back in history if possible.
-     */
     public void goBack() {
         if (historyIndex > 0) {
             historyIndex--;
-            String page = history.get(historyIndex);
-            displayPage(page);
+            displayPage(history.get(historyIndex));
         } else {
-            // optionally beep or ignore
             Toolkit.getDefaultToolkit().beep();
         }
     }
 
-    /**
-     * Go forward in history if possible.
-     */
     public void goForward() {
         if (historyIndex < history.size() - 1) {
             historyIndex++;
-            String page = history.get(historyIndex);
-            displayPage(page);
+            displayPage(history.get(historyIndex));
         } else {
             Toolkit.getDefaultToolkit().beep();
         }
@@ -178,46 +148,48 @@ public class MainFrame extends JFrame {
         InputMap im = root.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW);
         ActionMap am = root.getActionMap();
 
-        // Alt + Left => go back
         im.put(KeyStroke.getKeyStroke("alt LEFT"), "goBack");
-        am.put("goBack", new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                goBack();
-            }
-        });
-
-        // Alt + Right => go forward
+        am.put("goBack", new AbstractAction() { public void actionPerformed(ActionEvent e) { goBack(); }});
         im.put(KeyStroke.getKeyStroke("alt RIGHT"), "goForward");
-        am.put("goForward", new AbstractAction() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                goForward();
-            }
-        });
+        am.put("goForward", new AbstractAction() { public void actionPerformed(ActionEvent e) { goForward(); }});
 
-        // Backspace as an additional back key
         im.put(KeyStroke.getKeyStroke("BACK_SPACE"), "goBack");
 
-        // Platform friendly shortcuts: menu shortcut (Cmd on macOS / Ctrl on Windows)
         int menuMask = Toolkit.getDefaultToolkit().getMenuShortcutKeyMaskEx();
-        // Cmd/Ctrl + [ -> back
         im.put(KeyStroke.getKeyStroke(KeyEvent.VK_OPEN_BRACKET, menuMask), "goBack");
-        // Cmd/Ctrl + ] -> forward
         im.put(KeyStroke.getKeyStroke(KeyEvent.VK_CLOSE_BRACKET, menuMask), "goForward");
-
-        // Also support Ctrl/Cmd + Left/Right explicitly
         im.put(KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, menuMask), "goBack");
         im.put(KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, menuMask), "goForward");
-
-        // Support Ctrl + Left/Right as well (useful on Windows/Linux)
         im.put(KeyStroke.getKeyStroke(KeyEvent.VK_LEFT, InputEvent.CTRL_DOWN_MASK), "goBack");
         im.put(KeyStroke.getKeyStroke(KeyEvent.VK_RIGHT, InputEvent.CTRL_DOWN_MASK), "goForward");
     }
 
+    /**
+     * If Home page exists, call its refreshProducts() method to update quietly.
+     * HomePage must implement a public refreshProducts() method (see HomePage below).
+     */
+    public void refreshHomeIfPresent() {
+        JPanel home = pages.get("HOME");
+        if (home instanceof HomePage) {
+            ((HomePage) home).refreshProducts();
+        }
+    }
+
+    /**
+     * Refresh an arbitrary page by name if it exposes a refresh method.
+     * For now only "HOME" is supported but you can extend this.
+     */
+    public void refreshPage(String pageName) {
+        JPanel p = pages.get(pageName);
+        if (p == null) return;
+        if (p instanceof HomePage) ((HomePage) p).refreshProducts();
+        // add other cases if necessary (e.g., ordersPanel.refreshOrders())
+    }
+
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-            Theme.applyDarkTheme();
+            // if you have Theme.applyDarkTheme(); keep it
+            try { Theme.applyDarkTheme(); } catch (Throwable ignored) {}
             MainFrame frame = new MainFrame();
             frame.setVisible(true);
         });

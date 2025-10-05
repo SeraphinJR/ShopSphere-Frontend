@@ -78,7 +78,7 @@ public class OrdersPanel extends JPanel {
         setStatus("Loading orders...");
         new Thread(() -> {
             try {
-                URL url = new URL("http://localhost:8080/orders/user");
+                URL url = new URL("http://localhost:8080/orders/");
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
                 conn.setRequestProperty("Accept", "application/json");
