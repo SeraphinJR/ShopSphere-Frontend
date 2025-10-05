@@ -385,28 +385,42 @@ public class VendorDashboard extends JPanel {
                 }
                 int rc = conn.getResponseCode();
                 String resp = rc >= 200 && rc < 300 ? readStream(conn.getInputStream()) : readStream(conn.getErrorStream());
+
                 if (rc >= 200 && rc < 300) {
                     setStatus("Product deleted.");
                     parent.refreshHomeIfPresent();
-                    // reflect change on storefront
                     SwingUtilities.invokeLater(() -> {
                         parent.showPage("HOME");
                         parent.showPage("VENDOR");
                     });
                 } else {
-                    setStatus("Delete failed: " + rc);
-                    SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, "Failed to delete: " + rc + "\n" + resp));
+                    // parse JSON error if available
+                    String msg;
+                    try {
+                        JSONObject obj = new JSONObject(resp);
+                        msg = obj.optString("error", "Unknown error");
+                    } catch (Exception ex) {
+                        msg = resp;
+                    }
+                    String finalMsg = "Product present in a Cart or Order\nUnable to delete";
+                    setStatus(finalMsg);
+                    SwingUtilities.invokeLater(() ->
+                        JOptionPane.showMessageDialog(this, finalMsg, "Delete Error", JOptionPane.WARNING_MESSAGE)
+                    );
                 }
             } catch (Exception ex) {
                 ex.printStackTrace();
                 setStatus("Error deleting product");
-                SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage()));
+                SwingUtilities.invokeLater(() ->
+                    JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage(), "Delete Error", JOptionPane.ERROR_MESSAGE)
+                );
             } finally {
                 if (conn != null) conn.disconnect();
                 loadProductsAsync();
             }
         }).start();
     }
+
 
     // ---------- Small product form panel used for Add/Edit ----------
     private static class ProductFormPanel extends JPanel {

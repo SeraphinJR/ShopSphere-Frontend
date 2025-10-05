@@ -167,7 +167,7 @@ public class BillingPanel extends JPanel {
 
         JLabel qtyLabel = new JLabel("Qty: " + qty);
         qtyLabel.setFont(new Font("Segoe UI", Font.PLAIN, Math.max(11, rowHeight / 7)));
-        qtyLabel.setForeground(Color.DARK_GRAY);
+        qtyLabel.setForeground(Color.WHITE);
 
         infoPanel.add(nameLabel);
         infoPanel.add(Box.createRigidArea(new Dimension(0, Math.max(4, rowHeight/18))));
@@ -255,28 +255,44 @@ public class BillingPanel extends JPanel {
 
     /** Simulates showing a QR — here we create a simple placeholder BufferedImage. */
     private void showQr(String token) {
-        // create a simple QR placeholder image that also shows a short token snippet
-        BufferedImage img = new BufferedImage(260, 260, BufferedImage.TYPE_INT_RGB);
-        Graphics2D g = img.createGraphics();
-        g.setColor(Color.WHITE);
-        g.fillRect(0,0,260,260);
-        g.setColor(Color.BLACK);
-        g.drawRect(0,0,259,259);
-        g.setFont(new Font("Monospaced", Font.BOLD, 28));
-        g.drawString("QR", 110, 130);
-        g.setFont(new Font("Monospaced", Font.PLAIN, 10));
-        String snippet = token == null ? "" : (token.length() > 32 ? token.substring(0, 32) + "…" : token);
-        g.drawString(snippet, 8, 248);
-        g.dispose();
-
-        qrPanel.removeAll();
-        JLabel pic = new JLabel(new ImageIcon(img));
-        qrPanel.add(pic, BorderLayout.CENTER);
-        qrPanel.setVisible(true);
-        paymentCompletedBtn.setEnabled(true);
-        revalidate();
-        repaint();
+    if (token == null || token.isEmpty()) {
+        JOptionPane.showMessageDialog(this, "No payment token found!");
+        return;
     }
+
+    // Example: if your backend serves files from /static/qr/<token>.png
+    String qrUrl = "http://localhost:8080/mockPay/myQR.png";
+
+    new Thread(() -> {
+        try {
+            URL url = new URL(qrUrl);
+            Image qrImage = javax.imageio.ImageIO.read(url);
+            if (qrImage != null) {
+                Image scaled = qrImage.getScaledInstance(260, 260, Image.SCALE_SMOOTH);
+                SwingUtilities.invokeLater(() -> {
+                    qrPanel.removeAll();
+                    qrPanel.add(new JLabel(new ImageIcon(scaled)), BorderLayout.CENTER);
+                    qrPanel.setVisible(true);
+                    paymentCompletedBtn.setEnabled(true);
+                    revalidate();
+                    repaint();
+                });
+            } else {
+                throw new IOException("QR image is null");
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            SwingUtilities.invokeLater(() -> {
+                JOptionPane.showMessageDialog(this, "Failed to load QR image: " + ex.getMessage());
+                // fallback to placeholder
+                qrPanel.removeAll();
+                qrPanel.add(new JLabel("QR not found", SwingConstants.CENTER), BorderLayout.CENTER);
+                qrPanel.setVisible(true);
+            });
+        }
+    }).start();
+}
+
 
     private void clearCart(){
         try{

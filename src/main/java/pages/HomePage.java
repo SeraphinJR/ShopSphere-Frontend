@@ -114,25 +114,33 @@ public void refreshProducts() {
 
 
     // Updated createProductCard method to optionally load images from URL
-    private JPanel createProductCard(String id, String name, String price, String imagePath, boolean isUrl) {
+    // Replace your old createProductCard with this one
+    private JPanel createProductCard(String id, String name, String price, String imagePath, boolean isUrl, double rating, int reviewCount) {
         JPanel card = new JPanel();
         card.setPreferredSize(new Dimension(260, 260));
         card.setLayout(new BorderLayout());
-        card.setBorder(BorderFactory.createLineBorder(Color.GRAY));
+        card.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(180, 180, 180)),
+                BorderFactory.createEmptyBorder(8, 8, 8, 8)
+        ));
+        card.setBackground(UIManager.getColor("Panel.background"));
 
+        // --- Image area (top) ---
         JLabel imageLabel = new JLabel();
         imageLabel.setHorizontalAlignment(SwingConstants.CENTER);
         imageLabel.setVerticalAlignment(SwingConstants.CENTER);
         imageLabel.setPreferredSize(new Dimension(260, 160));
+        imageLabel.setOpaque(false);
 
         try {
-            Image img;
-            if (isUrl) {
-                img = ImageIO.read(URI.create(imagePath).toURL());
-            } else {
-                String imageUrl = "http://localhost:8080/uploads/" + imagePath;
-
-                img = ImageIO.read(URI.create(imageUrl).toURL());
+            Image img = null;
+            if (imagePath != null && !imagePath.isEmpty()) {
+                if (isUrl) {
+                    img = ImageIO.read(URI.create(imagePath).toURL());
+                } else {
+                    String imageUrl = "http://localhost:8080/uploads/" + URLEncoder.encode(imagePath, StandardCharsets.UTF_8.toString());
+                    img = ImageIO.read(URI.create(imageUrl).toURL());
+                }
             }
             if (img != null) {
                 Image scaled = img.getScaledInstance(240, 150, Image.SCALE_SMOOTH);
@@ -144,23 +152,65 @@ public void refreshProducts() {
             imageLabel.setText("<image error>");
         }
 
-        JPanel info = new JPanel(new BorderLayout());
+        // --- Middle info area (name, price, rating) ---
+        JPanel info = new JPanel();
+        info.setLayout(new BorderLayout());
+        info.setOpaque(false);
         info.setBorder(BorderFactory.createEmptyBorder(6, 6, 6, 6));
 
-        JLabel nameLabel = new JLabel(name);
+        // Name + price row
+        JLabel nameLabel = new JLabel("<html><b>" + name + "</b></html>");
         nameLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        nameLabel.setOpaque(false);
 
         JLabel priceLabel = new JLabel(price);
-        priceLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        priceLabel.setFont(new Font("Segoe UI", Font.BOLD, 13));
         priceLabel.setForeground(new Color(0, 128, 0));
+        priceLabel.setOpaque(false);
 
         JPanel topInfo = new JPanel(new BorderLayout());
+        topInfo.setOpaque(false);
         topInfo.add(nameLabel, BorderLayout.WEST);
         topInfo.add(priceLabel, BorderLayout.EAST);
 
+        // Rating row (star, numeric rating, review count)
+        JPanel ratingRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        ratingRow.setOpaque(false);
+
+        // star icon (unicode) — colored
+        JLabel starLabel = new JLabel("\u2605"); // ★
+        starLabel.setFont(new Font("SansSerif", Font.PLAIN, 14));
+        starLabel.setForeground(new Color(212, 175, 55)); // gold-ish
+
+        // numeric rating
+        String ratingText = String.format("%.1f", rating);
+        JLabel ratingValue = new JLabel(ratingText);
+        ratingValue.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+
+        // review count
+        JLabel reviewCountLabel = new JLabel("(" + reviewCount + (reviewCount == 1 ? " review)" : " reviews)"));
+        reviewCountLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+        reviewCountLabel.setForeground(UIManager.getColor("Label.foreground"));
+
+        ratingRow.add(starLabel);
+        ratingRow.add(ratingValue);
+        ratingRow.add(reviewCountLabel);
+
+        // put topInfo and ratingRow in a vertical box
+        JPanel mid = new JPanel();
+        mid.setLayout(new BoxLayout(mid, BoxLayout.Y_AXIS));
+        mid.setOpaque(false);
+        mid.add(topInfo);
+        mid.add(Box.createVerticalStrut(6));
+        mid.add(ratingRow);
+
+        info.add(mid, BorderLayout.CENTER);
+
+        // --- bottom: add to cart button ---
         JButton addBtn = new JButton("Add to cart");
         addBtn.setPreferredSize(new Dimension(120, 28));
         addBtn.addActionListener(e -> {
+            // keep existing behaviour (unchanged)
             try {
                 URL url = URI.create("http://localhost:8080/cart").toURL();
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -202,21 +252,27 @@ public void refreshProducts() {
             } catch (Exception err) {
                 err.printStackTrace();
                 JOptionPane.showMessageDialog(this, "Error: " + err.getMessage());
-
             }
         });
 
-        info.add(topInfo, BorderLayout.NORTH);
-        info.add(addBtn, BorderLayout.SOUTH);
+        JPanel bottomRow = new JPanel(new BorderLayout());
+        bottomRow.setOpaque(false);
+        JPanel btnWrap = new JPanel(new FlowLayout(FlowLayout.RIGHT, 0, 0));
+        btnWrap.setOpaque(false);
+        btnWrap.add(addBtn);
+        bottomRow.add(btnWrap, BorderLayout.EAST);
 
+        info.add(bottomRow, BorderLayout.SOUTH);
+
+        // assemble card
         card.add(imageLabel, BorderLayout.NORTH);
         card.add(info, BorderLayout.CENTER);
-        // after card construction, before return
+
+        // clickable: open product detail
         card.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         card.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
-                // open detail frame on click (use product id as string)
                 String pid = String.valueOf(id);
                 SwingUtilities.invokeLater(() -> {
                     ProductDetailFrame f = new ProductDetailFrame(pid);
@@ -227,6 +283,7 @@ public void refreshProducts() {
 
         return card;
     }
+
 
     private void searchProducts(java.awt.event.ActionEvent evt) {
         String query = searchField.getText().trim();
@@ -294,18 +351,22 @@ public void refreshProducts() {
         productPanel.removeAll(); // Clear old products
         for (int i = 0; i < productsArray.length(); i++) {
             JSONObject prod = productsArray.getJSONObject(i);
-            String id = String.valueOf(prod.getInt("id"));
-            String name = prod.getString("name");
-            String price = "$" + prod.getDouble("price");
-            String imagePath = prod.getString("image"); // could be URL or local path
+            // defensive reads (use opt... so bad/missing values don't blow up)
+            String id = String.valueOf(prod.opt("id"));
+            String name = prod.optString("name", "Unnamed");
+            String price = "$" + String.format("%.2f", prod.optDouble("price", 0.0));
+            String imagePath = prod.optString("image", "");
             boolean isUrl = imagePath.startsWith("http");
+            double rating = prod.has("rating") ? prod.optDouble("rating", 0.0) : 0.0;
+            int reviewCount = prod.has("reviewCount") ? prod.optInt("reviewCount", 0) : prod.optInt("review_count", 0);
 
-            JPanel card = createProductCard(id, name, price, imagePath, isUrl);
+            JPanel card = createProductCard(id, name, price, imagePath, isUrl, rating, reviewCount);
             productPanel.add(card);
         }
         productPanel.revalidate();
         productPanel.repaint();
     }
+
 
     private void checkVendorAndOpen() {
         checkRoleAndOpenPage("VENDOR", "Please sign in first. Go to your Profile to upgrade to Vendor.");
