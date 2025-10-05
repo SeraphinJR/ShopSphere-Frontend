@@ -10,14 +10,15 @@ import org.json.*;
  * OrdersPanel - lists user's orders and each order's items.
  *
  * Visual tweaks:
- *  - Order cards take only as much vertical space as their contents (no giant fixed heights).
- *  - Stronger typography: bolder headings, darker text for readability.
- *  - Compact item rows so the list scrolls smoothly.
+ * - Order cards take only as much vertical space as their contents (no giant
+ * fixed heights).
+ * - Stronger typography: bolder headings, darker text for readability.
+ * - Compact item rows so the list scrolls smoothly.
  *
  * Endpoints used:
- *  - GET /orders/user               -> JSONArray of orders
- *  - GET /orders/{orderId}/items    -> JSONArray of items for an order
- *  - GET /products/{productId}     -> to fetch product name if missing
+ * - GET /orders/user -> JSONArray of orders
+ * - GET /orders/{orderId}/items -> JSONArray of items for an order
+ * - GET /products/{productId} -> to fetch product name if missing
  */
 public class OrdersPanel extends JPanel {
     private final MainFrame parent;
@@ -78,7 +79,7 @@ public class OrdersPanel extends JPanel {
         setStatus("Loading orders...");
         new Thread(() -> {
             try {
-                URL url = new URL("http://localhost:8080/orders/user");
+                URL url = new URL("http://localhost:8080/orders");
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
                 conn.setRequestProperty("Accept", "application/json");
@@ -88,7 +89,8 @@ public class OrdersPanel extends JPanel {
                 }
 
                 int rc = conn.getResponseCode();
-                String body = rc >= 200 && rc < 300 ? readStream(conn.getInputStream()) : readStream(conn.getErrorStream());
+                String body = rc >= 200 && rc < 300 ? readStream(conn.getInputStream())
+                        : readStream(conn.getErrorStream());
                 conn.disconnect();
 
                 if (rc >= 200 && rc < 300) {
@@ -116,13 +118,15 @@ public class OrdersPanel extends JPanel {
                     setStatus("Loaded " + orders.length() + " orders.");
                 } else {
                     setStatus("Failed to load orders: " + rc);
-                    SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, "Failed to load orders: " + rc + "\n" + body));
+                    SwingUtilities.invokeLater(
+                            () -> JOptionPane.showMessageDialog(this, "Failed to load orders: " + rc + "\n" + body));
                 }
             } catch (Exception ex) {
                 ex.printStackTrace();
                 setStatus("Error loading orders");
-                SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, "Error loading orders: " + ex.getMessage()));
-            } 
+                SwingUtilities.invokeLater(
+                        () -> JOptionPane.showMessageDialog(this, "Error loading orders: " + ex.getMessage()));
+            }
         }).start();
     }
 
@@ -135,10 +139,10 @@ public class OrdersPanel extends JPanel {
         card.setBackground(Color.WHITE);
         card.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(new Color(220, 220, 220)),
-                BorderFactory.createEmptyBorder(10, 12, 10, 12)
-        ));
+                BorderFactory.createEmptyBorder(10, 12, 10, 12)));
 
-        // Let the card size be determined by contents (don't force a large fixed height)
+        // Let the card size be determined by contents (don't force a large fixed
+        // height)
         card.setMaximumSize(new Dimension(Integer.MAX_VALUE, Integer.MAX_VALUE));
 
         // Header
@@ -163,7 +167,8 @@ public class OrdersPanel extends JPanel {
         leftWrap.add(mid);
         header.add(leftWrap, BorderLayout.WEST);
 
-        JLabel right = new JLabel(String.format("<html><b>%s</b> &nbsp; — &nbsp; Total: <b>$ %.2f</b></html>", status, total));
+        JLabel right = new JLabel(
+                String.format("<html><b>%s</b> &nbsp; — &nbsp; Total: <b>$ %.2f</b></html>", status, total));
         right.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         right.setForeground(new Color(45, 45, 45));
         header.add(right, BorderLayout.EAST);
@@ -200,7 +205,8 @@ public class OrdersPanel extends JPanel {
 
     /**
      * Loads items for a given order and updates itemsContainer in-place.
-     * For each item, displays product name (fetched if missing), qty, unit price and line total.
+     * For each item, displays product name (fetched if missing), qty, unit price
+     * and line total.
      */
     private void loadOrderItemsAsync(long orderId, JPanel itemsContainer) {
         new Thread(() -> {
@@ -215,7 +221,8 @@ public class OrdersPanel extends JPanel {
                 }
 
                 int rc = conn.getResponseCode();
-                String body = rc >= 200 && rc < 300 ? readStream(conn.getInputStream()) : readStream(conn.getErrorStream());
+                String body = rc >= 200 && rc < 300 ? readStream(conn.getInputStream())
+                        : readStream(conn.getErrorStream());
                 conn.disconnect();
 
                 if (rc >= 200 && rc < 300) {
@@ -259,24 +266,29 @@ public class OrdersPanel extends JPanel {
                                     if (fetchedName != null) {
                                         SwingUtilities.invokeLater(() -> {
                                             // find the corresponding row in itemsContainer and update its name label
-                                            int compIndex = index * 4; // row, maybe rigid/sep etc. using conservative indexing is fragile; we'll search rows instead
-                                            // safer approach: iterate components and update first JLabel WEST we find in row
+                                            int compIndex = index * 4; // row, maybe rigid/sep etc. using conservative
+                                                                       // indexing is fragile; we'll search rows instead
+                                            // safer approach: iterate components and update first JLabel WEST we find
+                                            // in row
                                             Component[] comps = itemsContainer.getComponents();
                                             int foundRows = 0;
                                             for (Component c : comps) {
                                                 if (c instanceof JPanel) {
                                                     JPanel rowPanel = (JPanel) c;
-                                                    Component west = ((BorderLayout) rowPanel.getLayout()).getLayoutComponent(BorderLayout.WEST);
+                                                    Component west = ((BorderLayout) rowPanel.getLayout())
+                                                            .getLayoutComponent(BorderLayout.WEST);
                                                     if (west instanceof JLabel) {
                                                         ((JLabel) west).setText(fetchedName);
                                                     }
                                                     foundRows++;
-                                                    if (foundRows > index) break;
+                                                    if (foundRows > index)
+                                                        break;
                                                 }
                                             }
                                         });
                                     }
-                                } catch (Exception ignored) {}
+                                } catch (Exception ignored) {
+                                }
                             }).start();
                         }
                     }
@@ -364,11 +376,13 @@ public class OrdersPanel extends JPanel {
     }
 
     private static String readStream(InputStream is) throws IOException {
-        if (is == null) return "";
+        if (is == null)
+            return "";
         try (BufferedReader br = new BufferedReader(new InputStreamReader(is, "utf-8"))) {
             StringBuilder sb = new StringBuilder();
             String line;
-            while ((line = br.readLine()) != null) sb.append(line);
+            while ((line = br.readLine()) != null)
+                sb.append(line);
             return sb.toString();
         }
     }
