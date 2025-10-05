@@ -4,6 +4,7 @@ import javax.swing.*;
 import java.awt.*;
 
 import java.io.InputStreamReader;
+import java.io.InputStream;
 import java.io.BufferedReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
@@ -51,7 +52,7 @@ public class HomePage extends JPanel {
         setSize(1000, 600);
 
         // populate some sample products (replace with real data)
-        populateProducts();
+        refreshProducts();
 
         // show frame
         setVisible(true);
@@ -65,54 +66,46 @@ public class HomePage extends JPanel {
 
     // inside HomePage class, replace populateProducts() with:
 
-    private void populateProducts() {
+    /**
+ * Fetch full product list off the EDT and update UI on the EDT.
+ * Replaces your previous populateProducts().
+ */
+public void refreshProducts() {
+    // optional: show temporary UI state (disable search button, show spinner ...)
+    new Thread(() -> {
+        HttpURLConnection conn = null;
         try {
             URL url = new URL("http://localhost:8080/products");
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
             conn.setRequestProperty("Accept", "application/json");
 
             int responseCode = conn.getResponseCode();
-            if (responseCode >= 200 && responseCode < 300) {
-                BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                StringBuilder response = new StringBuilder();
+            InputStream is = (responseCode >= 200 && responseCode < 300) ? conn.getInputStream() : conn.getErrorStream();
+            StringBuilder sb = new StringBuilder();
+            try (BufferedReader br = new BufferedReader(new InputStreamReader(is, "utf-8"))) {
                 String line;
-                while ((line = in.readLine()) != null) {
-                    response.append(line);
-                }
-                in.close();
-
-                JSONArray products = new JSONArray(response.toString());
-
-                // clear panel
-                productPanel.removeAll();
-
-                for (int i = 0; i < products.length(); i++) {
-                    JSONObject p = products.getJSONObject(i);
-                    String id = p.get("id").toString();
-                    String name = p.getString("name");
-                    String price = "$" + p.getDouble("price");
-                    String imageFile = p.getString("image"); // e.g., "image1.jpg"
-
-                    // If your images are served via HTTP, prepend the URL
-                    String imageUrl = "http://localhost:8080/uploads/" + imageFile;
-
-                    JPanel card = createProductCard(id, name, price, imageUrl, true);
-                    productPanel.add(card);
-                }
-
-                productPanel.revalidate();
-                productPanel.repaint();
-
-            } else {
-                JOptionPane.showMessageDialog(this, "Failed to load products: " + responseCode);
+                while ((line = br.readLine()) != null) sb.append(line);
             }
-
-        } catch (Exception e) {
-            e.printStackTrace();
-            JOptionPane.showMessageDialog(this, "Error fetching products: " + e.getMessage());
+            String body = sb.toString();
+            if (responseCode >= 200 && responseCode < 300) {
+                JSONArray products = new JSONArray(body);
+                SwingUtilities.invokeLater(() -> displayProducts(products));
+            } else {
+                SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this,
+                        "Failed to load products: " + responseCode + "\n" + body));
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this,
+                    "Error fetching products: " + ex.getMessage()));
+        } finally {
+            if (conn != null) conn.disconnect();
+            // optional: re-enable controls here
         }
-    }
+    }).start();
+}
+
 
     // Updated createProductCard method to optionally load images from URL
     private JPanel createProductCard(String id, String name, String price, String imagePath, boolean isUrl) {
