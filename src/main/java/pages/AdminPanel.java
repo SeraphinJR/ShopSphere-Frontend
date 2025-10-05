@@ -75,16 +75,17 @@ public class AdminPanel extends JPanel {
         };
         
         // Products table model
-        String[] productColumns = {"ID", "Name", "Price", "Stock", "Category", "Actions"};
+        String[] productColumns = {"ID", "Name", "Price", "Original Price", "Category", "Description", 
+            "Rating", "Reviews", "Stock", "Vendor ID", "Actions"};
         productsTableModel = new DefaultTableModel(productColumns, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
-                return column == 5; // Only actions column is editable
+                return column == 10; // Only actions column is editable
             }
         };
         
         // Users table model
-        String[] userColumns = {"ID", "Username", "Email", "Role", "Actions"};
+        String[] userColumns = {"ID", "First Name", "Last Name", "Email", "Role", "Actions"};
         usersTableModel = new DefaultTableModel(userColumns, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -93,7 +94,7 @@ public class AdminPanel extends JPanel {
         };
         
         // Reviews table model
-        String[] reviewColumns = {"ID", "Product", "User", "Rating", "Comment", "Actions"};
+        String[] reviewColumns = {"ID", "Product", "User", "Rating", "Review", "Actions"};
         reviewsTableModel = new DefaultTableModel(reviewColumns, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -107,13 +108,13 @@ public class AdminPanel extends JPanel {
         panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         
         JTable table = new JTable(usersTableModel);
-        table.getColumnModel().getColumn(4).setCellRenderer(new ButtonRenderer());
-        table.getColumnModel().getColumn(4).setCellEditor(
+        table.getColumnModel().getColumn(5).setCellRenderer(new ButtonRenderer());
+        table.getColumnModel().getColumn(5).setCellEditor(
             new ButtonEditor(new JCheckBox(), "Edit Role", e -> {
                 int row = table.getSelectedRow();
                 if (row != -1) {
                     String userId = table.getValueAt(row, 0).toString();
-                    String currentRole = table.getValueAt(row, 3).toString();
+                    String currentRole = table.getValueAt(row, 4).toString();
                     updateUserRole(userId, currentRole);
                 }
             })
@@ -122,10 +123,15 @@ public class AdminPanel extends JPanel {
         JScrollPane scrollPane = new JScrollPane(table);
         panel.add(scrollPane, BorderLayout.CENTER);
         
-        // Add refresh button
-        JButton refreshButton = new JButton("Refresh Users");
+        // Add control buttons
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JButton addButton = new JButton("Add User");
+        JButton refreshButton = new JButton("Refresh");
+        addButton.addActionListener(e -> showAddUserDialog());
         refreshButton.addActionListener(e -> refreshUsersData());
-        panel.add(refreshButton, BorderLayout.SOUTH);
+        buttonPanel.add(addButton);
+        buttonPanel.add(refreshButton);
+        panel.add(buttonPanel, BorderLayout.SOUTH);
         
         return panel;
     }
@@ -135,8 +141,8 @@ public class AdminPanel extends JPanel {
         panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         
         JTable table = new JTable(productsTableModel);
-        table.getColumnModel().getColumn(5).setCellRenderer(new ButtonRenderer());
-        table.getColumnModel().getColumn(5).setCellEditor(
+        table.getColumnModel().getColumn(10).setCellRenderer(new ButtonRenderer());
+        table.getColumnModel().getColumn(10).setCellEditor(
             new ButtonEditor(new JCheckBox(), "Delete", e -> {
                 int row = table.getSelectedRow();
                 if (row != -1) {
@@ -232,11 +238,11 @@ public class AdminPanel extends JPanel {
     }
     
     private void refreshUsersData() {
-        if (usersPanel == null) {
-            System.err.println("Users panel not initialized");
+        if (usersTableModel == null) {
+            System.err.println("Users table model not initialized");
             return;
         }
-
+        
         new Thread(() -> {
             try {
                 URL url = URI.create("http://localhost:8080/admin/users").toURL();
@@ -245,22 +251,36 @@ public class AdminPanel extends JPanel {
                 conn.setRequestProperty("Authorization", "Bearer " + AuthManager.Token);
                 conn.setRequestProperty("Refresh-Token", AuthManager.Refresh);
                 
-                if (conn.getResponseCode() == 200) {
-                    String response = readInputStream(conn.getInputStream());
-                    JSONArray users = new JSONArray(response);
+                int responseCode = conn.getResponseCode();
+                System.out.println("Users Response Code: " + responseCode);
+                
+                if (responseCode == 200) {
+                    BufferedReader reader = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+                    StringBuilder response = new StringBuilder();
+                    String line;
+                    
+                    while ((line = reader.readLine()) != null) {
+                        response.append(line);
+                    }
+                    reader.close();
+                    
+                    JSONArray usersArray = new JSONArray(response.toString());
+                    System.out.println("Fetched " + usersArray.length() + " users");
                     
                     SwingUtilities.invokeLater(() -> {
-                        DefaultTableModel model = (DefaultTableModel) ((JTable) ((JScrollPane) usersPanel.getComponent(0)).getViewport().getView()).getModel();
-                        model.setRowCount(0);
-                        
-                        for (int i = 0; i < users.length(); i++) {
-                            JSONObject user = users.getJSONObject(i);
-                            model.addRow(new Object[]{
-                                user.getString("id"),
-                                user.getString("username"),
+                        usersTableModel.setRowCount(0);
+                        for (int i = 0; i < usersArray.length(); i++) {
+                            JSONObject user = usersArray.getJSONObject(i);
+                            JSONArray roles = user.getJSONArray("role");
+                            String primaryRole = roles.length() > 0 ? roles.getString(0) : "CUSTOMER";
+                            
+                            usersTableModel.addRow(new Object[]{
+                                String.valueOf(user.get("id")),
+                                user.getString("firstName"),
+                                user.getString("lastName"),
                                 user.getString("email"),
-                                user.getString("role"),
-                                "Edit"
+                                primaryRole,
+                                "Edit Role"
                             });
                         }
                     });
@@ -268,7 +288,7 @@ public class AdminPanel extends JPanel {
             } catch (Exception e) {
                 e.printStackTrace();
                 SwingUtilities.invokeLater(() -> 
-                    JOptionPane.showMessageDialog(this, "Error loading users: " + e.getMessage())
+                    JOptionPane.showMessageDialog(null, "Error loading users: " + e.getMessage())
                 );
             }
         }).start();
@@ -352,10 +372,16 @@ public class AdminPanel extends JPanel {
                         for (int i = 0; i < products.length(); i++) {
                             JSONObject product = products.getJSONObject(i);
                             model.addRow(new Object[]{
-                                product.getString("id"),
+                                String.valueOf(product.get("id")),
                                 product.getString("name"),
                                 String.format("$%.2f", product.getDouble("price")),
-                                product.getInt("stock"),
+                                String.format("$%.2f", product.optDouble("originalPrice", 0.0)),
+                                product.optString("category", "N/A"),
+                                product.optString("description", ""),
+                                String.format("%.1f", product.optDouble("rating", 0.0)),
+                                product.optInt("reviewCount", 0),
+                                product.optBoolean("inStock", false) ? "Yes" : "No",
+                                String.valueOf(product.opt("vendorId")),
                                 "Delete"
                             });
                         }
@@ -373,7 +399,7 @@ public class AdminPanel extends JPanel {
     private void showAddProductDialog() {
         JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "Add Product", true);
         dialog.setLayout(new BorderLayout());
-        dialog.setSize(400, 300);
+        dialog.setSize(500, 600);
         dialog.setLocationRelativeTo(this);
         
         JPanel form = new JPanel(new GridBagLayout());
@@ -382,30 +408,70 @@ public class AdminPanel extends JPanel {
         gbc.insets = new Insets(5, 5, 5, 5);
         
         // Add form fields
-        JTextField nameField = new JTextField(20);
-        JTextField priceField = new JTextField(20);
-        JTextField stockField = new JTextField(20);
-        JTextField descriptionField = new JTextField(20);
+        JTextField nameField = new JTextField(30);
+        JTextField priceField = new JTextField(30);
+        JTextField originalPriceField = new JTextField(30);
+        JTextField categoryField = new JTextField(30);
+        JTextArea descriptionField = new JTextArea(4, 30);
+        descriptionField.setLineWrap(true);
+        descriptionField.setWrapStyleWord(true);
+        JScrollPane descScrollPane = new JScrollPane(descriptionField);
         
-        gbc.gridx = 0; gbc.gridy = 0;
+        JTextField imageField = new JTextField(30);
+        JCheckBox inStockCheckbox = new JCheckBox("In Stock");
+        inStockCheckbox.setSelected(true);
+        
+        JTextField featuresField = new JTextField(30);
+        
+        int gridy = 0;
+        
+        // Name
+        gbc.gridx = 0; gbc.gridy = gridy++;
         form.add(new JLabel("Name:"), gbc);
         gbc.gridx = 1;
         form.add(nameField, gbc);
         
-        gbc.gridx = 0; gbc.gridy = 1;
+        // Price
+        gbc.gridx = 0; gbc.gridy = gridy++;
         form.add(new JLabel("Price:"), gbc);
         gbc.gridx = 1;
         form.add(priceField, gbc);
         
-        gbc.gridx = 0; gbc.gridy = 2;
-        form.add(new JLabel("Stock:"), gbc);
+        // Original Price
+        gbc.gridx = 0; gbc.gridy = gridy++;
+        form.add(new JLabel("Original Price:"), gbc);
         gbc.gridx = 1;
-        form.add(stockField, gbc);
+        form.add(originalPriceField, gbc);
         
-        gbc.gridx = 0; gbc.gridy = 3;
+        // Category
+        gbc.gridx = 0; gbc.gridy = gridy++;
+        form.add(new JLabel("Category:"), gbc);
+        gbc.gridx = 1;
+        form.add(categoryField, gbc);
+        
+        // Description
+        gbc.gridx = 0; gbc.gridy = gridy++;
         form.add(new JLabel("Description:"), gbc);
         gbc.gridx = 1;
-        form.add(descriptionField, gbc);
+        form.add(descScrollPane, gbc);
+        
+        // Image URL
+        gbc.gridx = 0; gbc.gridy = gridy++;
+        form.add(new JLabel("Image URL:"), gbc);
+        gbc.gridx = 1;
+        form.add(imageField, gbc);
+        
+        // Stock Status
+        gbc.gridx = 0; gbc.gridy = gridy++;
+        form.add(new JLabel("Stock Status:"), gbc);
+        gbc.gridx = 1;
+        form.add(inStockCheckbox, gbc);
+        
+        // Features
+        gbc.gridx = 0; gbc.gridy = gridy++;
+        form.add(new JLabel("Features:"), gbc);
+        gbc.gridx = 1;
+        form.add(featuresField, gbc);
         
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         JButton saveButton = new JButton("Save");
@@ -413,22 +479,33 @@ public class AdminPanel extends JPanel {
         
         saveButton.addActionListener(e -> {
             try {
-                // Validate inputs
+                // Validate required inputs
                 String name = nameField.getText().trim();
-                double price = Double.parseDouble(priceField.getText().trim());
-                int stock = Integer.parseInt(stockField.getText().trim());
+                String category = categoryField.getText().trim();
                 String description = descriptionField.getText().trim();
                 
-                if (name.isEmpty() || description.isEmpty()) {
-                    throw new IllegalArgumentException("All fields are required");
+                if (name.isEmpty() || category.isEmpty() || description.isEmpty()) {
+                    throw new IllegalArgumentException("Name, category, and description are required");
+                }
+                
+                // Validate numeric inputs
+                double price = Double.parseDouble(priceField.getText().trim());
+                double originalPrice = Double.parseDouble(originalPriceField.getText().trim());
+                
+                if (price < 0 || originalPrice < 0) {
+                    throw new IllegalArgumentException("Prices cannot be negative");
                 }
                 
                 // Create product object
                 JSONObject product = new JSONObject();
                 product.put("name", name);
                 product.put("price", price);
-                product.put("stock", stock);
+                product.put("originalPrice", originalPrice);
+                product.put("category", category);
                 product.put("description", description);
+                product.put("image", imageField.getText().trim());
+                product.put("inStock", inStockCheckbox.isSelected());
+                product.put("features", featuresField.getText().trim());
                 
                 // Add product
                 addProduct(product);
@@ -436,7 +513,7 @@ public class AdminPanel extends JPanel {
                 
             } catch (NumberFormatException ex) {
                 JOptionPane.showMessageDialog(dialog, 
-                    "Price and stock must be valid numbers",
+                    "Please enter valid numbers for prices",
                     "Validation Error",
                     JOptionPane.ERROR_MESSAGE);
             } catch (IllegalArgumentException ex) {
@@ -452,7 +529,19 @@ public class AdminPanel extends JPanel {
         buttonPanel.add(saveButton);
         buttonPanel.add(cancelButton);
         
-        dialog.add(form, BorderLayout.CENTER);
+        // Add numeric validation for price fields
+        KeyAdapter numericValidator = new KeyAdapter() {
+            public void keyTyped(KeyEvent e) {
+                char c = e.getKeyChar();
+                if (!((c >= '0' && c <= '9') || c == '.' || c == KeyEvent.VK_BACK_SPACE || c == KeyEvent.VK_DELETE)) {
+                    e.consume();
+                }
+            }
+        };
+        priceField.addKeyListener(numericValidator);
+        originalPriceField.addKeyListener(numericValidator);
+
+        dialog.add(new JScrollPane(form), BorderLayout.CENTER);
         dialog.add(buttonPanel, BorderLayout.SOUTH);
         dialog.setVisible(true);
     }
@@ -590,7 +679,7 @@ public class AdminPanel extends JPanel {
     }
     
     private void updateOrderStatus(String orderId, String currentStatus) {
-        String[] statuses = {"PENDING", "PROCESSING", "SHIPPED", "DELIVERED", "CANCELLED"};
+        String[] statuses = {"PENDING", "PAYMENT_PENDING", "PAYMENT_COMPLETED"};
         String newStatus = (String) JOptionPane.showInputDialog(
             this,
             "Select new status for order: " + orderId,
@@ -674,8 +763,8 @@ public class AdminPanel extends JPanel {
                 for (int i = 0; i < ordersArray.length(); i++) {
                     JSONObject order = ordersArray.getJSONObject(i);
                     model.addRow(new Object[]{
-                        order.getString("id"),
-                        order.getString("userId"),
+                        String.valueOf(order.get("id")),
+                        String.valueOf(order.get("userId")),
                         order.getString("orderDate"),
                         order.getDouble("totalAmount"),
                         order.getString("status"),
@@ -709,10 +798,15 @@ public class AdminPanel extends JPanel {
         JScrollPane scrollPane = new JScrollPane(table);
         panel.add(scrollPane, BorderLayout.CENTER);
         
-        // Add refresh button
-        JButton refreshButton = new JButton("Refresh Reviews");
+        // Add control buttons
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JButton addButton = new JButton("Add Review");
+        JButton refreshButton = new JButton("Refresh");
+        addButton.addActionListener(e -> showAddReviewDialog());
         refreshButton.addActionListener(e -> refreshReviewsData());
-        panel.add(refreshButton, BorderLayout.SOUTH);
+        buttonPanel.add(addButton);
+        buttonPanel.add(refreshButton);
+        panel.add(buttonPanel, BorderLayout.SOUTH);
         
         return panel;
     }
@@ -754,11 +848,11 @@ public class AdminPanel extends JPanel {
                 for (int i = 0; i < reviewsArray.length(); i++) {
                     JSONObject review = reviewsArray.getJSONObject(i);
                     model.addRow(new Object[]{
-                        review.getString("id"),
-                        review.getString("userId"),
-                        review.getString("productId"),
+                        String.valueOf(review.get("id")),
+                        String.valueOf(review.get("userId")),
+                        String.valueOf(review.get("productId")),
                         review.getInt("rating"),
-                        review.getString("comment"),
+                        review.getString("review"),
                         "Delete"
                     });
                 }
@@ -802,35 +896,326 @@ public class AdminPanel extends JPanel {
         }
     }
 
-    private void updateUserRole(String userId, String newRole) {
+    private void showAddUserDialog() {
+        JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "Add User", true);
+        dialog.setLayout(new BorderLayout());
+        dialog.setSize(400, 400);
+        dialog.setLocationRelativeTo(this);
+        
+        JPanel form = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(5, 5, 5, 5);
+        
+        // Add form fields
+        JTextField firstNameField = new JTextField(20);
+        JTextField lastNameField = new JTextField(20);
+        JTextField emailField = new JTextField(20);
+        JPasswordField passwordField = new JPasswordField(20);
+        JComboBox<String> roleBox = new JComboBox<>(new String[]{
+            "CUSTOMER",
+            "CUSTOMER,VENDOR",
+            "CUSTOMER,VENDOR,ADMIN"
+        });
+        
+        int gridy = 0;
+        
+        // First Name
+        gbc.gridx = 0; gbc.gridy = gridy++;
+        form.add(new JLabel("First Name:"), gbc);
+        gbc.gridx = 1;
+        form.add(firstNameField, gbc);
+        
+        // Last Name
+        gbc.gridx = 0; gbc.gridy = gridy++;
+        form.add(new JLabel("Last Name:"), gbc);
+        gbc.gridx = 1;
+        form.add(lastNameField, gbc);
+        
+        // Email
+        gbc.gridx = 0; gbc.gridy = gridy++;
+        form.add(new JLabel("Email:"), gbc);
+        gbc.gridx = 1;
+        form.add(emailField, gbc);
+        
+        // Password
+        gbc.gridx = 0; gbc.gridy = gridy++;
+        form.add(new JLabel("Password:"), gbc);
+        gbc.gridx = 1;
+        form.add(passwordField, gbc);
+        
+        // Role
+        gbc.gridx = 0; gbc.gridy = gridy++;
+        form.add(new JLabel("Role:"), gbc);
+        gbc.gridx = 1;
+        form.add(roleBox, gbc);
+        
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JButton saveButton = new JButton("Save");
+        JButton cancelButton = new JButton("Cancel");
+        
+        saveButton.addActionListener(e -> {
+            try {
+                // Validate inputs
+                String firstName = firstNameField.getText().trim();
+                String lastName = lastNameField.getText().trim();
+                String email = emailField.getText().trim();
+                String password = new String(passwordField.getPassword());
+                String role = (String) roleBox.getSelectedItem();
+                
+                if (firstName.isEmpty() || lastName.isEmpty() || email.isEmpty() || password.isEmpty()) {
+                    throw new IllegalArgumentException("All fields are required");
+                }
+                
+                // Create user object
+                JSONObject user = new JSONObject();
+                user.put("firstName", firstName);
+                user.put("lastName", lastName);
+                user.put("email", email);
+                user.put("password", password);
+                
+                // Create role array for roles field
+                JSONArray roles = new JSONArray();
+                roles.put("CUSTOMER"); // Base role
+                if ("VENDOR".equals(role)) {
+                    roles.put("VENDOR");
+                } else if ("ADMIN".equals(role)) {
+                    roles.put("VENDOR");
+                    roles.put("ADMIN");
+                }
+                user.put("role", String.join(",", roles.toList().stream()
+                    .map(Object::toString)
+                    .toArray(String[]::new)));
+                
+                // Add user
+                addUser(user);
+                dialog.dispose();
+                
+            } catch (IllegalArgumentException ex) {
+                JOptionPane.showMessageDialog(dialog,
+                    ex.getMessage(),
+                    "Validation Error",
+                    JOptionPane.ERROR_MESSAGE);
+            }
+        });
+        
+        cancelButton.addActionListener(e -> dialog.dispose());
+        
+        buttonPanel.add(saveButton);
+        buttonPanel.add(cancelButton);
+        
+        dialog.add(new JScrollPane(form), BorderLayout.CENTER);
+        dialog.add(buttonPanel, BorderLayout.SOUTH);
+        dialog.setVisible(true);
+    }
+    
+    private void addUser(JSONObject user) {
         new Thread(() -> {
             try {
-                URL url = URI.create("http://localhost:8080/api/admin/users/" + userId + "/role").toURL();
+                URL url = URI.create("http://localhost:8080/admin/users").toURL();
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("PUT");
+                conn.setRequestMethod("POST");
                 conn.setRequestProperty("Authorization", "Bearer " + AuthManager.Token);
                 conn.setRequestProperty("Refresh-Token", AuthManager.Refresh);
                 conn.setRequestProperty("Content-Type", "application/json");
                 conn.setDoOutput(true);
                 
-                JSONObject requestBody = new JSONObject();
-                requestBody.put("role", newRole);
-                
                 try (OutputStream os = conn.getOutputStream()) {
-                    os.write(requestBody.toString().getBytes(StandardCharsets.UTF_8));
+                    os.write(user.toString().getBytes(StandardCharsets.UTF_8));
                 }
                 
-                if (conn.getResponseCode() == 200) {
-                    SwingUtilities.invokeLater(this::refreshUsersData);
+                if (conn.getResponseCode() == 201) {
+                    SwingUtilities.invokeLater(() -> {
+                        JOptionPane.showMessageDialog(this, "User added successfully!");
+                        refreshUsersData();
+                    });
                 } else {
                     throw new IOException("Server returned code: " + conn.getResponseCode());
                 }
             } catch (Exception e) {
                 e.printStackTrace();
                 SwingUtilities.invokeLater(() -> 
-                    JOptionPane.showMessageDialog(this, "Error updating user role: " + e.getMessage())
+                    JOptionPane.showMessageDialog(this, "Error adding user: " + e.getMessage())
                 );
             }
         }).start();
+    }
+    
+    private void showAddReviewDialog() {
+        JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "Add Review", true);
+        dialog.setLayout(new BorderLayout());
+        dialog.setSize(400, 500);
+        dialog.setLocationRelativeTo(this);
+        
+        JPanel form = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(5, 5, 5, 5);
+        
+        // Add form fields
+        JTextField userIdField = new JTextField(20);
+        JTextField productIdField = new JTextField(20);
+        JSpinner ratingSpinner = new JSpinner(new SpinnerNumberModel(5, 1, 5, 1));
+        JTextArea reviewField = new JTextArea(5, 20);
+        reviewField.setLineWrap(true);
+        reviewField.setWrapStyleWord(true);
+        JScrollPane reviewScroll = new JScrollPane(reviewField);
+        
+        int gridy = 0;
+        
+        // User ID
+        gbc.gridx = 0; gbc.gridy = gridy++;
+        form.add(new JLabel("User ID:"), gbc);
+        gbc.gridx = 1;
+        form.add(userIdField, gbc);
+        
+        // Product ID
+        gbc.gridx = 0; gbc.gridy = gridy++;
+        form.add(new JLabel("Product ID:"), gbc);
+        gbc.gridx = 1;
+        form.add(productIdField, gbc);
+        
+        // Rating
+        gbc.gridx = 0; gbc.gridy = gridy++;
+        form.add(new JLabel("Rating (1-5):"), gbc);
+        gbc.gridx = 1;
+        form.add(ratingSpinner, gbc);
+        
+        // Review
+        gbc.gridx = 0; gbc.gridy = gridy++;
+        form.add(new JLabel("Review:"), gbc);
+        gbc.gridx = 1;
+        gbc.fill = GridBagConstraints.BOTH;
+        form.add(reviewScroll, gbc);
+        
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JButton saveButton = new JButton("Save");
+        JButton cancelButton = new JButton("Cancel");
+        
+        saveButton.addActionListener(e -> {
+            try {
+                // Validate inputs
+                String userId = userIdField.getText().trim();
+                String productId = productIdField.getText().trim();
+                int rating = (Integer) ratingSpinner.getValue();
+                String reviewText = reviewField.getText().trim();
+                
+                if (userId.isEmpty() || productId.isEmpty() || reviewText.isEmpty()) {
+                    throw new IllegalArgumentException("All fields are required");
+                }
+                
+                // Create review object
+                JSONObject review = new JSONObject();
+                review.put("userId", userId);
+                review.put("productId", productId);
+                review.put("rating", rating);
+                review.put("review", reviewText);
+                
+                // Add review
+                addReview(review);
+                dialog.dispose();
+                
+            } catch (IllegalArgumentException ex) {
+                JOptionPane.showMessageDialog(dialog,
+                    ex.getMessage(),
+                    "Validation Error",
+                    JOptionPane.ERROR_MESSAGE);
+            }
+        });
+        
+        cancelButton.addActionListener(e -> dialog.dispose());
+        
+        buttonPanel.add(saveButton);
+        buttonPanel.add(cancelButton);
+        
+        dialog.add(new JScrollPane(form), BorderLayout.CENTER);
+        dialog.add(buttonPanel, BorderLayout.SOUTH);
+        dialog.setVisible(true);
+    }
+    
+    private void addReview(JSONObject review) {
+        new Thread(() -> {
+            try {
+                URL url = URI.create("http://localhost:8080/admin/reviews").toURL();
+                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Authorization", "Bearer " + AuthManager.Token);
+                conn.setRequestProperty("Refresh-Token", AuthManager.Refresh);
+                conn.setRequestProperty("Content-Type", "application/json");
+                conn.setDoOutput(true);
+                
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(review.toString().getBytes(StandardCharsets.UTF_8));
+                }
+                
+                if (conn.getResponseCode() == 201) {
+                    SwingUtilities.invokeLater(() -> {
+                        JOptionPane.showMessageDialog(this, "Review added successfully!");
+                        refreshReviewsData();
+                    });
+                } else {
+                    throw new IOException("Server returned code: " + conn.getResponseCode());
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+                SwingUtilities.invokeLater(() -> 
+                    JOptionPane.showMessageDialog(this, "Error adding review: " + e.getMessage())
+                );
+            }
+        }).start();
+    }
+    
+    private void updateUserRole(String userId, String currentRole) {
+        // Show role selection dialog with combined roles
+        String[] roles = {
+            "CUSTOMER",
+            "CUSTOMER,VENDOR",
+            "CUSTOMER,VENDOR,ADMIN"
+        };
+        String newRole = (String) JOptionPane.showInputDialog(
+            this,
+            "Select new role for user " + userId,
+            "Update User Role",
+            JOptionPane.QUESTION_MESSAGE,
+            null,
+            roles,
+            currentRole
+        );
+
+        if (newRole != null && !newRole.equals(currentRole)) {
+            new Thread(() -> {
+                try {
+                    URL url = URI.create("http://localhost:8080/api/admin/users/" + userId + "/role").toURL();
+                    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+                    conn.setRequestMethod("PUT");
+                    conn.setRequestProperty("Authorization", "Bearer " + AuthManager.Token);
+                    conn.setRequestProperty("Refresh-Token", AuthManager.Refresh);
+                    conn.setRequestProperty("Content-Type", "application/json");
+                    conn.setDoOutput(true);
+                    
+                    JSONObject requestBody = new JSONObject();
+                    requestBody.put("role", newRole);
+                    
+                    try (OutputStream os = conn.getOutputStream()) {
+                        os.write(requestBody.toString().getBytes(StandardCharsets.UTF_8));
+                    }
+                    
+                    int responseCode = conn.getResponseCode();
+                    if (responseCode == 200) {
+                        SwingUtilities.invokeLater(() -> {
+                            JOptionPane.showMessageDialog(this, "User role updated successfully!");
+                            refreshUsersData();
+                        });
+                    } else {
+                        throw new IOException("Server returned code: " + responseCode);
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    SwingUtilities.invokeLater(() -> 
+                        JOptionPane.showMessageDialog(this, "Error updating user role: " + e.getMessage())
+                    );
+                }
+            }).start();
+        }
     }
 }
