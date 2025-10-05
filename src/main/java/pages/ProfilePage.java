@@ -11,6 +11,8 @@ import java.net.URL;
 import org.json.JSONObject;
 import model.CartModel;
 
+
+
 /**
  * Profile page: shows name, email, role (dropdown), and profile photo
  * placeholder.
@@ -20,7 +22,9 @@ import model.CartModel;
 public class ProfilePage extends JPanel {
     private MainFrame parent;
     private CartModel cartModel;
-
+    private JButton upgradeBtn;
+    private String currentEmail;
+    
     private JLabel photoLabel;
     private JTextField nameField;
     private JTextField emailField;
@@ -157,8 +161,112 @@ public class ProfilePage extends JPanel {
 
         // put content into center
         add(content, BorderLayout.CENTER);
+        upgradeBtn = new JButton("Upgrade to Vendor?");
+        upgradeBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
+        upgradeBtn.addActionListener(e -> onUpgradeVendor());
+        content.add(Box.createVerticalStrut(12));
+        content.add(upgradeBtn);
+        content.add(Box.createVerticalStrut(12));
+
+        add(content, BorderLayout.CENTER);
     }
 
+    private void onUpgradeVendor() {
+    if (currentEmail == null || currentEmail.isEmpty()) return;
+
+    int confirm = JOptionPane.showConfirmDialog(this,
+            "Are you sure you want to upgrade your account to Vendor?",
+            "Confirm Upgrade", JOptionPane.YES_NO_OPTION);
+    if (confirm != JOptionPane.YES_OPTION) return;
+
+    upgradeBtn.setEnabled(false);
+
+    SwingWorker<Void, Void> worker = new SwingWorker<>() {
+        private String msg = "Unknown response";
+        private boolean upgradeSuccess = false;
+
+        @Override
+        protected Void doInBackground() {
+            HttpURLConnection conn = null;
+            try {
+                URL url = new URL("http://localhost:8080/auth/register/vendor");
+                conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("POST");
+                conn.setRequestProperty("Content-Type", "application/json");
+                String token = AuthManager.Token;
+                if (token != null && !token.isEmpty())
+                    conn.setRequestProperty("Authorization", "Bearer " + token);
+                conn.setDoOutput(true);
+
+                JSONObject payload = new JSONObject();
+                String[] nameParts = nameField.getText().split(" ", 2);
+                payload.put("firstName", nameParts.length > 0 ? nameParts[0] : "");
+                payload.put("lastName", nameParts.length > 1 ? nameParts[1] : "");
+                payload.put("email", currentEmail);
+                payload.put("password","placeholder");
+
+                try (OutputStream os = conn.getOutputStream()) {
+                    os.write(payload.toString().getBytes("utf-8"));
+                }
+
+                int rc = conn.getResponseCode();
+                InputStream is = (rc >= 200 && rc < 300) ? conn.getInputStream() : conn.getErrorStream();
+
+                if (is != null) {
+                    BufferedReader br = new BufferedReader(new InputStreamReader(is));
+                    StringBuilder sb = new StringBuilder();
+                    String line;
+                    while ((line = br.readLine()) != null) sb.append(line);
+                    br.close();
+
+                    JSONObject resp = new JSONObject(sb.toString());
+                    if (resp.has("message")) msg = resp.getString("message");
+                    else if (resp.has("msg")) msg = resp.getString("msg");
+                    else msg = sb.toString();
+
+                    upgradeSuccess = rc >= 200 && rc < 300;
+                }
+
+            } catch (Exception ex) {
+                msg = ex.getMessage();
+            } finally {
+                if (conn != null) conn.disconnect();
+            }
+            return null;
+        }
+
+        @Override
+        protected void done() {
+            upgradeBtn.setEnabled(true);
+            JOptionPane.showMessageDialog(ProfilePage.this, msg);
+
+            if (upgradeSuccess) {
+                // Logout
+                try {
+                    HttpURLConnection logoutConn = (HttpURLConnection) new URL("http://localhost:8080/auth/logout").openConnection();
+                    logoutConn.setRequestMethod("GET");
+                    String token = AuthManager.Token;
+                    if (token != null && !token.isEmpty())
+                        logoutConn.setRequestProperty("Authorization", "Bearer " + token);
+                    logoutConn.getResponseCode(); // just trigger the request
+                    logoutConn.disconnect();
+                } catch (Exception ignored) {}
+
+                // Open login page and close main frame
+                SwingUtilities.invokeLater(() -> {
+                    Login loginPage = new Login(); // your login frame
+                    loginPage.setVisible(true);
+                    parent.dispose(); // close main frame
+                });
+            }
+        }
+    };
+    worker.execute();
+}
+
+
+
+    
     private void fetchProfileAsync() {
         uploadBtn.setEnabled(false);
         SwingWorker<JSONObject, Void> worker = new SwingWorker<>() {
@@ -173,6 +281,7 @@ public class ProfilePage extends JPanel {
                 try {
                     JSONObject profile = get();
                     if (profile != null)
+                        System.out.println("applying");
                         applyProfile(profile);
                 } catch (Exception ex) {
                     ex.printStackTrace();
@@ -185,7 +294,7 @@ public class ProfilePage extends JPanel {
     }
 
     private JSONObject fetchProfile() {
-        String[] endpoints = { "http://localhost:8080/auth/me", "http://localhost:8080/users/me" };
+        String[] endpoints = { "http://localhost:8080/auth/current" };
         for (String ep : endpoints) {
             try {
                 URL url = new URL(ep);
@@ -211,6 +320,7 @@ public class ProfilePage extends JPanel {
                         sb.append(line);
                     in.close();
                     try {
+                        System.out.println("Fetched user");
                         return new JSONObject(sb.toString());
                     } catch (Exception ex) {
                         System.out.println("Failed to parse profile JSON from " + ep + ": " + sb);
@@ -224,43 +334,41 @@ public class ProfilePage extends JPanel {
         return null;
     }
 
+    
+    
     private void applyProfile(JSONObject p) {
-        String first = p.optString("firstName", p.optString("first", ""));
-        String last = p.optString("lastName", p.optString("last", ""));
-        String email = p.optString("email", p.optString("username", ""));
-        // role is intentionally ignored in the UI (read-only view)
-        String photoUrl = p.optString("photoUrl", p.optString("avatar", ""));
-
-        nameField.setText((first + " " + last).trim());
-        emailField.setText(email);
-        // Role is intentionally not editable in the UI; keep server-side value if
-        // needed.
-
-        if (!photoUrl.isEmpty()) {
-            // try to load image
-            SwingWorker<BufferedImage, Void> w = new SwingWorker<>() {
-                @Override
-                protected BufferedImage doInBackground() throws Exception {
-                    try {
-                        URL u = new URL(photoUrl);
-                        return ImageIO.read(u);
-                    } catch (Exception ex) {
-                        return null;
-                    }
-                }
-
-                @Override
-                protected void done() {
-                    try {
-                        profileImage = get();
-                        photoLabel.repaint();
-                    } catch (Exception ex) {
-                    }
-                }
-            };
-            w.execute();
-        }
+    if (!"success".equalsIgnoreCase(p.optString("status"))) {
+        JOptionPane.showMessageDialog(this, "Failed to load profile: " + p.optString("message"));
+        return;
     }
+
+    String first = p.optString("firstName", "");
+    String last = p.optString("lastName", "");
+    String email = p.optString("email", "");
+    currentEmail = email;
+
+    nameField.setText((first + " " + last).trim());
+    emailField.setText(email);
+
+    // Load photo if available
+    String photoUrl = p.optString("photoUrl", p.optString("avatar", ""));
+    if (!photoUrl.isEmpty()) loadProfileImage(photoUrl);
+}
+
+private void loadProfileImage(String url) {
+    SwingWorker<BufferedImage, Void> w = new SwingWorker<>() {
+        @Override
+        protected BufferedImage doInBackground() throws Exception {
+            try { return ImageIO.read(new URL(url)); } catch (Exception ex) { return null; }
+        }
+        @Override
+        protected void done() {
+            try { profileImage = get(); photoLabel.repaint(); } catch (Exception ignored) {}
+        }
+    };
+    w.execute();
+}
+
 
     // onSaveProfile removed - profile is read-only in this view
 

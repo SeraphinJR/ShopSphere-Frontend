@@ -333,6 +333,17 @@ private JPanel makeBillingRow(JSONObject item) {
         }).start();
     }
 
+    public void reset() {
+        // Hide QR
+        qrPanel.setVisible(false);
+        paymentCompletedBtn.setEnabled(false);
+        proceedButton.setEnabled(true);
+
+        // Rebuild items list from current cart
+        rebuildItemsList();
+        recalcTotalAsync();
+    }
+
     
     /** Called when user confirms payment is completed. Posts /orders with items. */
     private void submitOrderAsync() {

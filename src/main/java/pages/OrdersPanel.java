@@ -27,43 +27,43 @@ public class OrdersPanel extends JPanel {
 
     public OrdersPanel(MainFrame parent) {
         this.parent = parent;
-        setLayout(new BorderLayout(8, 8));
-        setBackground(Color.WHITE);
+        setLayout(new BorderLayout(10, 10));
+setBackground(new Color(245, 248, 250)); // light neutral bg
 
-        // Top bar
-        JPanel top = new JPanel(new BorderLayout());
-        top.setBackground(new Color(245, 245, 245));
-        top.setBorder(BorderFactory.createEmptyBorder(10, 12, 10, 12));
-        JLabel title = new JLabel("Your Orders");
-        title.setFont(new Font("Segoe UI", Font.BOLD, 20));
-        title.setForeground(new Color(34, 34, 34));
-        top.add(title, BorderLayout.WEST);
+// 🔹 Top bar
+JPanel top = new JPanel(new BorderLayout());
+top.setBackground(new Color(30, 144, 255)); // Dodger blue bar
+top.setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
 
-        JPanel controls = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        controls.setOpaque(false);
+JLabel title = new JLabel("🛒 Your Orders");
+title.setFont(new Font("Segoe UI", Font.BOLD, 22));
+title.setForeground(Color.WHITE);
+top.add(title, BorderLayout.WEST);
 
-        top.add(controls, BorderLayout.EAST);
+add(top, BorderLayout.NORTH);
 
-        add(top, BorderLayout.NORTH);
+// 🔹 Orders list area
+listPanel = new JPanel();
+listPanel.setLayout(new BoxLayout(listPanel, BoxLayout.Y_AXIS));
+listPanel.setBackground(Color.WHITE);
 
-        // List area
-        listPanel = new JPanel();
-        listPanel.setLayout(new BoxLayout(listPanel, BoxLayout.Y_AXIS));
-        listPanel.setBackground(Color.WHITE);
-        listPanel.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
-        JScrollPane sp = new JScrollPane(listPanel);
-        sp.setBorder(null);
-        sp.getVerticalScrollBar().setUnitIncrement(18);
-        add(sp, BorderLayout.CENTER);
+JScrollPane scrollPane = new JScrollPane(listPanel);
+scrollPane.setBorder(BorderFactory.createEmptyBorder());
+scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+scrollPane.getViewport().setBackground(new Color(245, 248, 250));
+add(scrollPane, BorderLayout.CENTER);
 
-        // Bottom status
-        JPanel bottom = new JPanel(new BorderLayout());
-        bottom.setBackground(new Color(245, 245, 245));
-        bottom.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
-        statusLabel = new JLabel(" ");
-        statusLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        bottom.add(statusLabel, BorderLayout.WEST);
-        add(bottom, BorderLayout.SOUTH);
+// 🔹 Bottom status bar
+JPanel bottom = new JPanel(new BorderLayout());
+bottom.setBackground(new Color(240, 240, 240));
+bottom.setBorder(BorderFactory.createEmptyBorder(6, 15, 6, 15));
+
+statusLabel = new JLabel(" ");
+statusLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+statusLabel.setForeground(new Color(60, 60, 60));
+bottom.add(statusLabel, BorderLayout.WEST);
+add(bottom, BorderLayout.SOUTH);
+
 
         // Actions
 
@@ -76,59 +76,108 @@ public class OrdersPanel extends JPanel {
     }
 
     private void loadOrdersAsync() {
-        setStatus("Loading orders...");
-        new Thread(() -> {
-            try {
-                URL url = new URL("http://localhost:8080/orders/");
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("GET");
-                conn.setRequestProperty("Accept", "application/json");
-                if (AuthManager.Token != null && !AuthManager.Token.isEmpty()) {
-                    conn.setRequestProperty("Authorization", "Bearer " + AuthManager.Token);
-                    conn.setRequestProperty("Refresh-Token", AuthManager.Refresh);
-                }
-
-                int rc = conn.getResponseCode();
-                String body = rc >= 200 && rc < 300 ? readStream(conn.getInputStream())
-                        : readStream(conn.getErrorStream());
-                conn.disconnect();
-
-                if (rc >= 200 && rc < 300) {
-                    JSONArray orders = new JSONArray(body);
-                    SwingUtilities.invokeLater(() -> {
-                        listPanel.removeAll();
-                        if (orders.length() == 0) {
-                            JLabel empty = new JLabel("You have no orders yet.");
-                            empty.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
-                            empty.setFont(new Font("Segoe UI", Font.PLAIN, 14));
-                            empty.setForeground(new Color(80, 80, 80));
-                            listPanel.add(empty);
-                        } else {
-                            for (int i = 0; i < orders.length(); i++) {
-                                JSONObject order = orders.getJSONObject(i);
-                                JPanel card = makeOrderCard(order);
-                                card.setAlignmentX(Component.LEFT_ALIGNMENT);
-                                listPanel.add(card);
-                                listPanel.add(Box.createRigidArea(new Dimension(0, 10)));
-                            }
-                        }
-                        listPanel.revalidate();
-                        listPanel.repaint();
-                    });
-                    setStatus("Loaded " + orders.length() + " orders.");
-                } else {
-                    setStatus("Failed to load orders: " + rc);
-                    SwingUtilities.invokeLater(
-                            () -> JOptionPane.showMessageDialog(this, "Failed to load orders: " + rc + "\n" + body));
-                }
-            } catch (Exception ex) {
-                ex.printStackTrace();
-                setStatus("Error loading orders");
-                SwingUtilities.invokeLater(
-                        () -> JOptionPane.showMessageDialog(this, "Error loading orders: " + ex.getMessage()));
+        System.out.println("OrdersPanel: loadOrdersAsync called!");
+    setStatus("Loading orders...");
+    new Thread(() -> {
+        System.out.println("start...");
+        HttpURLConnection conn = null;
+        try {
+            URL url = new URL("http://localhost:8080/orders/");
+            HttpURLConnection vconn = (HttpURLConnection) url.openConnection();
+            
+            vconn.setRequestMethod("GET");
+            vconn.setRequestProperty("Accept", "application/json");
+            if (AuthManager.Token != null && !AuthManager.Token.isEmpty()) {
+                vconn.setRequestProperty("Authorization", "Bearer " + AuthManager.Token);
+                vconn.setRequestProperty("Refresh-Token", AuthManager.Refresh);
             }
-        }).start();
-    }
+
+            int rc = vconn.getResponseCode();
+            System.out.println("Orders HTTP code: " + rc);
+
+
+            InputStream is = (rc >= 200 && rc < 300) ? vconn.getInputStream() : vconn.getErrorStream();
+            String body = readStream(is);
+            System.out.println("Body: " + body);
+            vconn.disconnect();
+
+            final int statusCode = rc;
+            final String respBody = body == null ? "" : body.trim();
+            System.out.println("[Orders] rc=" + statusCode + " body=" + (respBody.length() > 200 ? respBody.substring(0,200) + "..." : respBody));
+
+            if (statusCode >= 200 && statusCode < 300) {
+                // Try to parse either an array or a wrapped object containing an array
+                JSONArray ordersArray = null;
+                try {
+                    // if body starts with [ -> parse as array
+                    if (respBody.startsWith("[")) {
+                        ordersArray = new JSONArray(respBody);
+                    } else {
+                        JSONObject o = new JSONObject(respBody);
+                        if (o.has("orders") && o.get("orders") instanceof JSONArray) {
+                            ordersArray = o.getJSONArray("orders");
+                        } else if (o.has("data") && o.get("data") instanceof JSONArray) {
+                            ordersArray = o.getJSONArray("data");
+                        } else if (o.has("items") && o.get("items") instanceof JSONArray) {
+                            ordersArray = o.getJSONArray("items");
+                        } else {
+                            // maybe the response is a single object representing one order -> wrap it
+                            // but safer: create empty and show a warning
+                            ordersArray = new JSONArray();
+                            System.err.println("[Orders] Unexpected JSON shape: " + o.toString());
+                        }
+                    }
+                } catch (Exception pe) {
+                    // parsing error
+                    SwingUtilities.invokeLater(() -> {
+                        System.err.println("rc:"+rc+" body: "+respBody);
+                        JOptionPane.showMessageDialog(this,
+                            "Failed to parse orders JSON.\nResponse code: " + statusCode + "\nBody: " + respBody,
+                            "Parse error", JOptionPane.ERROR_MESSAGE);
+                    });
+                    setStatus("Failed to parse orders JSON");
+                    return;
+                }
+
+                final JSONArray orders = ordersArray;
+                SwingUtilities.invokeLater(() -> {
+                    listPanel.removeAll();
+                    if (orders.length() == 0) {
+                        JLabel empty = new JLabel("You have no orders yet.heh");
+                        empty.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
+                        empty.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+                        empty.setForeground(new Color(80, 80, 80));
+                        listPanel.add(empty);
+                    } else {
+                        for (int i = 0; i < orders.length(); i++) {
+                            JSONObject order = orders.getJSONObject(i);
+                            JPanel card = makeOrderCard(order);
+                            card.setAlignmentX(Component.LEFT_ALIGNMENT);
+                            listPanel.add(card);
+                            listPanel.add(Box.createRigidArea(new Dimension(0, 10)));
+                        }
+                    }
+                    listPanel.revalidate();
+                    listPanel.repaint();
+                });
+                setStatus("Loaded " + orders.length() + " orders.");
+            } else {
+                // non-2xx
+                setStatus("Failed to load orders: " + statusCode);
+                final String diag = "Failed to load orders: HTTP " + statusCode + "\nResponse: " + respBody;
+                System.err.println("[Orders] " + diag);
+                SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, diag, "Load error", JOptionPane.ERROR_MESSAGE));
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+            setStatus("Error loading orders");
+            SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, "Error loading orders: " + ex.getMessage(), "Error", JOptionPane.ERROR_MESSAGE));
+        } finally {
+            if (conn != null) conn.disconnect();
+        }
+    }).start();
+}
+
 
     /**
      * Create the visual card for a single order. The items area will be populated
@@ -149,9 +198,10 @@ public class OrdersPanel extends JPanel {
         JPanel header = new JPanel(new BorderLayout(8, 0));
         header.setOpaque(false);
         String id = order.opt("id") == null ? "?" : String.valueOf(order.opt("id"));
-        String created = order.optString("createdAt", order.optString("created_at", ""));
+        String created = order.optString("orderDate", "");       // was createdAt
         String status = order.optString("status", "N/A");
-        double total = order.optDouble("total", order.optDouble("totalAmount", 0.0));
+        double total = order.optDouble("totalAmount", 0.0);     // was total
+
 
         JLabel left = new JLabel(String.format("Order #%s", id));
         left.setFont(new Font("Segoe UI", Font.BOLD, 15));
@@ -334,7 +384,7 @@ public class OrdersPanel extends JPanel {
 
         JLabel nameLabel = new JLabel(productName.isEmpty() ? ("Product #" + productId) : productName);
         nameLabel.setFont(new Font("Segoe UI", Font.BOLD, 13));
-        nameLabel.setForeground(new Color(34, 34, 34));
+        nameLabel.setForeground(new Color(0, 134, 34));
         // allow wrapping by restricting preferred width but keep height minimal
         nameLabel.setPreferredSize(new Dimension(360, 18));
         nameLabel.setMinimumSize(new Dimension(120, 18));
@@ -342,7 +392,7 @@ public class OrdersPanel extends JPanel {
         double lineTotal = price * qty;
         JLabel lineLabel = new JLabel(String.format("%d × $ %.2f  =  $ %.2f", qty, price, lineTotal));
         lineLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-        lineLabel.setForeground(new Color(50, 50, 50));
+        lineLabel.setForeground(new Color(250, 50, 50));
         lineLabel.setHorizontalAlignment(SwingConstants.RIGHT);
 
         row.add(nameLabel, BorderLayout.WEST);

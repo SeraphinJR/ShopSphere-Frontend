@@ -9,6 +9,11 @@ import model.CartModel;
 /**
  * MainFrame - keeps single instances of pages, uses CardLayout.show(...)
  * and provides helpers to refresh home quietly.
+ *
+ * IMPORTANT:
+ * - VendorDashboard is NOT instantiated at startup. It's created lazily when first requested.
+ * - HomePage should be responsible for checking vendor permissions (via /auth/current)
+ *   and only call parent.showPage("VENDOR") when allowed.
  */
 public class MainFrame extends JFrame {
     private final CardLayout cardLayout;
@@ -20,10 +25,10 @@ public class MainFrame extends JFrame {
     private final JLabel pageLabel;
     private final CartModel cartModel = new CartModel();
 
-    // pages map keeps single instances
+    // pages map keeps single instances (lazy create for some pages)
     private final Map<String, JPanel> pages = new HashMap<>();
 
-    // navigation history
+    // navigation history (use fully-qualified type to avoid java.awt.List ambiguity)
     private final java.util.List<String> history = new ArrayList<>();
     private int historyIndex = -1;
 
@@ -56,17 +61,13 @@ public class MainFrame extends JFrame {
         navBar.addSeparator(new Dimension(12, 0));
         navBar.add(pageLabel);
 
-        // create pages once and add to cardPanel
-        pages.put("HOME", new HomePage(this, cartModel));
-        pages.put("CART", new CartPage(this, cartModel));
-        pages.put("BILLING", new BillingPanel(this, cartModel));
-        pages.put("ORDERS", new OrdersPanel(this));
-        pages.put("PROFILE", new ProfilePage(this, cartModel));
-        pages.put("VENDOR", new VendorDashboard(this));
-
-        for (Map.Entry<String, JPanel> e : pages.entrySet()) {
-            cardPanel.add(e.getValue(), e.getKey());
-        }
+        // create pages once and add to cardPanel (but DO NOT instantiate VENDOR yet)
+        putPage("HOME", new HomePage(this, cartModel));
+        putPage("CART", new CartPage(this, cartModel));
+        putPage("BILLING", new BillingPanel(this, cartModel));
+        putPage("ORDERS", new OrdersPanel(this));
+        putPage("PROFILE", new ProfilePage(this, cartModel));
+        // NOTE: do NOT create VendorDashboard here.
 
         setLayout(new BorderLayout());
         add(navBar, BorderLayout.NORTH);
@@ -79,12 +80,35 @@ public class MainFrame extends JFrame {
         setupKeyBindings();
     }
 
+    // Helper to add page instance to map + cardPanel
+    private void putPage(String name, JPanel panel) {
+        pages.put(name, panel);
+        cardPanel.add(panel, name);
+    }
+
     /**
      * Shows a page and appends to history.
+     * Lazily creates vendor page if requested.
      */
     public void showPage(String pageName) {
+        // lazy-create vendor page only when requested
+        if ("VENDOR".equals(pageName) && !pages.containsKey("VENDOR")) {
+            // create vendor dashboard lazily - don't do any server checks here,
+            // HomePage should only call showPage("VENDOR") if the user is allowed.
+            try {
+                VendorDashboard vendor = new VendorDashboard(this);
+                putPage("VENDOR", vendor);
+            } catch (Throwable t) {
+                // if creation fails, show error and don't add to history
+                t.printStackTrace();
+                JOptionPane.showMessageDialog(this, "Failed to open Vendor Dashboard:\n" + t.getMessage(),
+                        "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+        }
+
         if (!pages.containsKey(pageName)) {
-            System.err.println("Unknown page: " + pageName);
+            System.err.println("Unknown page requested: " + pageName);
             return;
         }
 
@@ -114,7 +138,15 @@ public class MainFrame extends JFrame {
             case "ORDERS": pageLabel.setText("Orders"); break;
             case "PROFILE": pageLabel.setText("Profile"); break;
             case "VENDOR": pageLabel.setText("Vendor Dashboard"); break;
-            case "BILLING": pageLabel.setText("Billing"); break;
+            case "BILLING":{
+                pageLabel.setText("Billing");
+                if ("BILLING".equals(pageName)) {
+                    JPanel panel = pages.get("BILLING");
+                    if (panel instanceof BillingPanel) {
+                        ((BillingPanel) panel).reset();
+                    }
+                }
+                break;}
             case "HOME":
             default: pageLabel.setText("Home"); break;
         }
@@ -166,7 +198,7 @@ public class MainFrame extends JFrame {
 
     /**
      * If Home page exists, call its refreshProducts() method to update quietly.
-     * HomePage must implement a public refreshProducts() method (see HomePage below).
+     * HomePage must implement a public refreshProducts() method (see HomePage).
      */
     public void refreshHomeIfPresent() {
         JPanel home = pages.get("HOME");
@@ -183,12 +215,11 @@ public class MainFrame extends JFrame {
         JPanel p = pages.get(pageName);
         if (p == null) return;
         if (p instanceof HomePage) ((HomePage) p).refreshProducts();
-        // add other cases if necessary (e.g., ordersPanel.refreshOrders())
+        // add other cases if necessary
     }
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
-            // if you have Theme.applyDarkTheme(); keep it
             try { Theme.applyDarkTheme(); } catch (Throwable ignored) {}
             MainFrame frame = new MainFrame();
             frame.setVisible(true);

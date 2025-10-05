@@ -16,6 +16,9 @@ import model.CartModel;
 import java.awt.Cursor;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.HashSet;
+import java.util.Set;
+import java.io.IOException;
 
 /**
  * HomePage - ShopSphere
@@ -301,6 +304,105 @@ public void refreshProducts() {
         productPanel.repaint();
     }
 
+    private void checkVendorAndOpen() {
+        // quick not-signed-in shortcut
+        if (AuthManager.Token == null || AuthManager.Token.trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this,
+                "Please sign in first. Go to your Profile to upgrade to Vendor.",
+                "Not signed in",
+                JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        // show wait cursor
+        Cursor old = getCursor();
+        setCursor(Cursor.getPredefinedCursor(Cursor.WAIT_CURSOR));
+
+        new Thread(() -> {
+            HttpURLConnection conn = null;
+            boolean isVendor = false;
+            String errorMsg = null;
+            try {
+                URL url = new URL("http://localhost:8080/auth/current/");
+                conn = (HttpURLConnection) url.openConnection();
+                conn.setRequestMethod("GET");
+                conn.setRequestProperty("Accept", "application/json");
+                conn.setRequestProperty("Authorization", "Bearer " + AuthManager.Token);
+                conn.setRequestProperty("Refresh-Token", AuthManager.Refresh);
+                conn.setConnectTimeout(4000);
+                conn.setReadTimeout(4000);
+
+                int rc = conn.getResponseCode();
+                InputStream is = (rc >= 200 && rc < 300) ? conn.getInputStream() : conn.getErrorStream();
+                String body = readStream(is);
+
+                // Defensive parse: handle { role: ... } or { data: { role: ... } } or roles array
+                JSONObject root = new JSONObject(body);
+
+                Object roleObj = null;
+                if (root.has("role")) roleObj = root.get("role");
+                else if (root.has("roles")) roleObj = root.get("roles");
+                else if (root.has("data") && root.get("data") instanceof JSONObject) {
+                    JSONObject data = root.getJSONObject("data");
+                    if (data.has("role")) roleObj = data.get("role");
+                    else if (data.has("roles")) roleObj = data.get("roles");
+                }
+
+                // normalize to uppercase set
+                Set<String> roles = new HashSet<>();
+                if (roleObj instanceof JSONArray) {
+                    JSONArray a = (JSONArray) roleObj;
+                    for (int i = 0; i < a.length(); i++) roles.add(String.valueOf(a.get(i)).toUpperCase());
+                } else if (roleObj instanceof String) {
+                    String s = ((String) roleObj).trim();
+                    if (s.contains(",")) {
+                        for (String part : s.split("\\s*,\\s*")) roles.add(part.toUpperCase());
+                    } else {
+                        roles.add(s.toUpperCase());
+                    }
+                } else if (roleObj != null) {
+                    String s = String.valueOf(roleObj);
+                    for (String part : s.split("\\s*,\\s*")) roles.add(part.toUpperCase());
+                }
+
+                isVendor = roles.contains("VENDOR") || roles.contains("ROLE_VENDOR") || roles.contains("ADMIN") || roles.contains("ROLE_ADMIN");
+
+            } catch (Exception ex) {
+                ex.printStackTrace();
+                errorMsg = ex.getMessage();
+            } finally {
+                if (conn != null) conn.disconnect();
+            }
+
+            final boolean allowed = isVendor;
+            final String err = errorMsg;
+            SwingUtilities.invokeLater(() -> {
+                setCursor(old);
+                if (allowed) {
+                    parent.showPage("VENDOR");
+                } else {
+                    String msg = "Upgrade to vendor through your profile.";
+                    if (err != null && !err.isEmpty()) {
+                        msg += "\n\n(Notice: couldn't verify role: " + err + ")";
+                    }
+                    JOptionPane.showMessageDialog(HomePage.this, msg, "Upgrade required", JOptionPane.INFORMATION_MESSAGE);
+                }
+            });
+        }).start();
+    }
+
+    // small helper (if you already have one in the class, you can omit this duplicate)
+    private static String readStream(InputStream is) throws IOException {
+        if (is == null) return "";
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(is, "utf-8"))) {
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = br.readLine()) != null) sb.append(line);
+            return sb.toString();
+        }
+    }
+
+    
     /**
      * This method is called from within the constructor to initialize the form.
      * NetBeans GUI Builder style generated code - DO NOT modify the guarded blocks.
@@ -363,7 +465,8 @@ public void refreshProducts() {
         miCart.addActionListener(e -> parent.showPage("CART"));
         miOrders.addActionListener(e -> parent.showPage("ORDERS"));
         miProfile.addActionListener(e -> parent.showPage("PROFILE"));
-        miVendor.addActionListener(e -> parent.showPage("VENDOR"));
+        miVendor.addActionListener(e -> checkVendorAndOpen());
+
 
         mainMenu.add(miCart);
         mainMenu.add(miOrders);
