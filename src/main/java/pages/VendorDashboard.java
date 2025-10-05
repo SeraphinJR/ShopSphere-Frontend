@@ -10,6 +10,8 @@ import java.net.*;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.json.*;
+import java.nio.charset.StandardCharsets;
+
 
 /**
  * VendorDashboard - improved version with safe UI updates and Home refresh after changes.
@@ -210,7 +212,9 @@ public class VendorDashboard extends JPanel {
             target.setText("[no image]");
             return;
         }
-        String imageUrl = imageField.startsWith("http") ? imageField : "http://localhost:8080/uploads/" + imageField;
+        String encoded = URLEncoder.encode(imageField, StandardCharsets.UTF_8);
+        String imageUrl = "http://localhost:8080/uploads/" + encoded;
+
         target.setText("[loading]");
         new Thread(() -> {
             HttpURLConnection conn = null;
@@ -304,6 +308,7 @@ public class VendorDashboard extends JPanel {
                     setStatus("Product added.");
                     // Refresh home (so storefront reflects new product) and then the dashboard
                     SwingUtilities.invokeLater(() -> {
+                        parent.refreshHomeIfPresent();
                         parent.showPage("HOME");
                         parent.showPage("VENDOR");
                     });
@@ -346,6 +351,7 @@ public class VendorDashboard extends JPanel {
                 System.out.println("[EDIT] rc=" + rc + " resp=" + resp);
                 if (rc >= 200 && rc < 300) {
                     setStatus("Product updated.");
+                    parent.refreshHomeIfPresent();
                     // refresh home and then vendor view to show updated product
                     SwingUtilities.invokeLater(() -> {
                         parent.showPage("HOME");
@@ -384,6 +390,7 @@ public class VendorDashboard extends JPanel {
                 System.out.println("[DELETE] rc=" + rc + " resp=" + resp);
                 if (rc >= 200 && rc < 300) {
                     setStatus("Product deleted.");
+                    parent.refreshHomeIfPresent();
                     // reflect change on storefront
                     SwingUtilities.invokeLater(() -> {
                         parent.showPage("HOME");

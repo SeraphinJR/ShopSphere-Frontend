@@ -5,11 +5,13 @@ import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.HttpURLConnection;
-import java.net.URL;
 import java.util.List;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import model.CartModel;
+import java.nio.charset.StandardCharsets;
+import java.net.URL;
+import java.net.URLEncoder;
 
 /**
  * BillingPanel - shows line items, total, QR and handles order submission.
@@ -299,7 +301,9 @@ private JPanel makeBillingRow(JSONObject item) {
             return;
         }
 
-        String imageUrl = imageField.startsWith("http") ? imageField : "http://localhost:8080/uploads/" + imageField;
+        String encoded = URLEncoder.encode(imageField, StandardCharsets.UTF_8);
+        String imageUrl = "http://localhost:8080/uploads/" + encoded;
+
         imgLabel.setText("[loading...]");
 
         new Thread(() -> {

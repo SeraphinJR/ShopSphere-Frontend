@@ -24,6 +24,8 @@ public class MainFrame extends JFrame {
     private final JButton homeBtn;
     private final JLabel pageLabel;
     private final CartModel cartModel = new CartModel();
+    private OrdersPanel ordersPanel;
+
 
     // pages map keeps single instances (lazy create for some pages)
     private final Map<String, JPanel> pages = new HashMap<>();
@@ -65,7 +67,8 @@ public class MainFrame extends JFrame {
         putPage("HOME", new HomePage(this, cartModel));
         putPage("CART", new CartPage(this, cartModel));
         putPage("BILLING", new BillingPanel(this, cartModel));
-        putPage("ORDERS", new OrdersPanel(this));
+        ordersPanel = new OrdersPanel(this);
+        putPage("ORDERS", ordersPanel);
         putPage("PROFILE", new ProfilePage(this, cartModel));
         // NOTE: do NOT create VendorDashboard here.
 
@@ -135,7 +138,10 @@ public class MainFrame extends JFrame {
     private void setPageTitle(String pageName) {
         switch (pageName) {
             case "CART": pageLabel.setText("Cart"); break;
-            case "ORDERS": pageLabel.setText("Orders"); break;
+            case "ORDERS":{
+                ordersPanel.refreshOrders();
+                pageLabel.setText("Orders");
+                break;}
             case "PROFILE": pageLabel.setText("Profile"); break;
             case "VENDOR": pageLabel.setText("Vendor Dashboard"); break;
             case "BILLING":{

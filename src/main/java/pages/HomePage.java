@@ -19,6 +19,8 @@ import java.awt.event.MouseEvent;
 import java.util.HashSet;
 import java.util.Set;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.net.URLEncoder;
 
 /**
  * HomePage - ShopSphere
@@ -127,7 +129,10 @@ public void refreshProducts() {
             if (isUrl) {
                 img = ImageIO.read(new URL(imagePath));
             } else {
-                img = ImageIO.read(new URL("http://localhost:8080/uploads/" + imagePath));
+                String encoded = URLEncoder.encode(imagePath, StandardCharsets.UTF_8);
+                String imageUrl = "http://localhost:8080/uploads/" + encoded;
+
+                img = ImageIO.read(new URL(imageUrl));
             }
             if (img != null) {
                 Image scaled = img.getScaledInstance(240, 150, Image.SCALE_SMOOTH);

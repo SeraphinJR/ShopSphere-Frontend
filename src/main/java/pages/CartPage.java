@@ -13,6 +13,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import org.json.*;
 import model.CartModel;
+import java.nio.charset.StandardCharsets;
+import java.net.URL;
+import java.net.URLEncoder;
 
 /**
  * CartPage - displays user's cart, allows quantity changes and checkout.
@@ -296,7 +299,9 @@ public class CartPage extends JPanel {
                     });
 
                     if (imageField != null && !imageField.isEmpty()) {
-                        String imageUrl = imageField.startsWith("http") ? imageField : "http://localhost:8080/uploads/" + imageField;
+                        String encoded = URLEncoder.encode(imageField, StandardCharsets.UTF_8);
+                        String imageUrl = "http://localhost:8080/uploads/" + encoded;
+
                         try {
                             Image img = ImageIO.read(new URL(imageUrl));
                             if (img != null) {

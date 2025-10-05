@@ -10,6 +10,9 @@ import java.util.ArrayList;
 import java.util.List;
 import javax.imageio.ImageIO;
 import org.json.*;
+import java.nio.charset.StandardCharsets;
+import java.net.URL;
+import java.net.URLEncoder;
 
 /**
  * ProductDetailFrame - shows full product details and reviews,
@@ -199,7 +202,11 @@ public class ProductDetailFrame extends JFrame {
                                 // try local resource, else server static path
                                 InputStream is = getClass().getResourceAsStream("/images/" + image);
                                 if (is != null) img = ImageIO.read(is);
-                                else img = ImageIO.read(new URL("http://localhost:8080/uploads/" + image));
+                                
+                                else{
+                                    String encoded = URLEncoder.encode(image, StandardCharsets.UTF_8);
+                                    img = ImageIO.read(new URL("http://localhost:8080/uploads/" + encoded));
+                                }
                             }
                             if (img != null) {
                                 Image scaled = img.getScaledInstance(300, 300, Image.SCALE_SMOOTH);
@@ -343,7 +350,9 @@ public class ProductDetailFrame extends JFrame {
     // show a small dialog to edit review, then call PUT
     private void showEditDialogAndUpdate(long reviewId, double currentRating, String currentText) {
         JPanel panel = new JPanel(new BorderLayout(6,6));
-        JSpinner sp = new JSpinner(new SpinnerNumberModel(currentRating, 0.5, 5.0, 0.5));
+        double safeRating = Math.max(0.5, Math.min(5.0, currentRating));
+        JSpinner sp = new JSpinner(new SpinnerNumberModel(safeRating, 0.5, 5.0, 0.5));
+
         JTextArea ta = new JTextArea(currentText, 6, 40);
         panel.add(new JLabel("Rating:"), BorderLayout.NORTH);
         panel.add(sp, BorderLayout.CENTER);

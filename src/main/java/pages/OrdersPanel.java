@@ -425,6 +425,11 @@ add(bottom, BorderLayout.SOUTH);
         }
     }
 
+    public void refreshOrders() {
+        loadOrdersAsync();
+    }
+
+    
     private static String readStream(InputStream is) throws IOException {
         if (is == null)
             return "";
