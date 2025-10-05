@@ -205,7 +205,7 @@ public class ProductDetailFrame extends JFrame {
                                 
                                 else{
                                     String encoded = URLEncoder.encode(image, StandardCharsets.UTF_8);
-                                    img = ImageIO.read(new URL("http://localhost:8080/uploads/" + encoded));
+                                    img = ImageIO.read(new URL("http://localhost:8080/uploads/" + image));
                                 }
                             }
                             if (img != null) {
@@ -276,7 +276,7 @@ public class ProductDetailFrame extends JFrame {
                 BorderFactory.createLineBorder(Color.LIGHT_GRAY),
                 BorderFactory.createEmptyBorder(6,6,6,6)
         ));
-        p.setBackground(Color.WHITE);
+        p.setBackground(UIManager.getColor("Panel.background"));
         
         String userName = r.optString(r.getLong("userId")+"", r.optString("user", "User"));
         double rating = r.optDouble("rating",  r.optDouble("rating", 0.0));
@@ -290,10 +290,10 @@ public class ProductDetailFrame extends JFrame {
         body.setLineWrap(true);
         body.setWrapStyleWord(true);
         body.setEditable(false);
-        body.setBackground(Color.WHITE);
+        body.setBackground(UIManager.getColor("Panel.background"));
         body.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         body.setRows(Math.min(3, text.split("\\s+").length / 10 + 1));
-        body.setBackground(Color.WHITE);
+        body.setBackground(UIManager.getColor("Panel.background"));
         body.setBorder(null);
 
 

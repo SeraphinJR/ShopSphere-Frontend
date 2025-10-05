@@ -155,7 +155,7 @@ public class CartPage extends JPanel {
                 BorderFactory.createEmptyBorder(8, 8, 8, 8)
         ));
         card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 140));
-        card.setBackground(Color.WHITE);
+        card.setBackground(UIManager.getColor("Panel.background"));
 
         // center: placeholders
         JPanel center = new JPanel(new BorderLayout());
@@ -300,7 +300,7 @@ public class CartPage extends JPanel {
 
                     if (imageField != null && !imageField.isEmpty()) {
                         String encoded = URLEncoder.encode(imageField, StandardCharsets.UTF_8);
-                        String imageUrl = "http://localhost:8080/uploads/" + encoded;
+                        String imageUrl = "http://localhost:8080/uploads/" + imageField;
 
                         try {
                             Image img = ImageIO.read(new URL(imageUrl));
@@ -380,7 +380,6 @@ public class CartPage extends JPanel {
         new Thread(() -> {
             HttpURLConnection conn = null;
             try {
-                System.out.println("beign..."+newQty);
                 URL url = new URL("http://localhost:8080/cart");
                 conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("PUT");
@@ -500,10 +499,10 @@ public class CartPage extends JPanel {
         checkoutButton = new javax.swing.JButton();
 
         setPreferredSize(new java.awt.Dimension(900, 600));
-        setBackground(new java.awt.Color(250, 250, 250));
+        setBackground(UIManager.getColor("Panel.background"));
 
         // topPanel
-        topPanel.setBackground(new java.awt.Color(245, 245, 245));
+        topPanel.setBackground(UIManager.getColor("Panel.background"));
         topPanel.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
 
         homeButton.setText("Home");
@@ -538,12 +537,12 @@ public class CartPage extends JPanel {
 
         // itemsPanel (inside scroll pane)
         itemsPanel.setLayout(new BoxLayout(itemsPanel, BoxLayout.Y_AXIS));
-        itemsPanel.setBackground(Color.WHITE);
+        itemsPanel.setBackground(UIManager.getColor("Panel.background"));
         itemsPanel.setBorder(BorderFactory.createEmptyBorder(12, 12, 12, 12));
         itemsScrollPane.setViewportView(itemsPanel);
 
         // bottomPanel: total + checkout
-        bottomPanel.setBackground(new java.awt.Color(245, 245, 245));
+        bottomPanel.setBackground(UIManager.getColor("Panel.background"));
         bottomPanel.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
 
         totalLabel.setFont(new java.awt.Font("Segoe UI", 1, 16));

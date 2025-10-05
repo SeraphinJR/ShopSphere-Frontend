@@ -42,7 +42,7 @@ public class ProfilePage extends JPanel {
     private void init() {
         // Top-level layout: vertical stack with photo centered at top
         setLayout(new BorderLayout(12, 12));
-        setBackground(Color.WHITE);
+        setBackground(UIManager.getColor("Panel.background"));
 
         JLabel title = new JLabel("Profile", SwingConstants.CENTER);
         title.setFont(new Font("Segoe UI", Font.BOLD, 20));
@@ -51,7 +51,7 @@ public class ProfilePage extends JPanel {
 
         // Content panel - vertical
         JPanel content = new JPanel();
-        content.setBackground(Color.WHITE);
+        content.setBackground(UIManager.getColor("Panel.background"));
         content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
 
         // Photo area (centered)
@@ -97,7 +97,7 @@ public class ProfilePage extends JPanel {
         uploadBtn.addActionListener(e -> onUploadPhoto());
 
         JPanel photoPanel = new JPanel();
-        photoPanel.setBackground(Color.WHITE);
+        photoPanel.setBackground(UIManager.getColor("Panel.background"));
         photoPanel.setLayout(new BoxLayout(photoPanel, BoxLayout.Y_AXIS));
         photoPanel.add(Box.createVerticalStrut(8));
         photoLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -111,7 +111,7 @@ public class ProfilePage extends JPanel {
 
         // Details area - compact, formal layout (labels left, fields right)
         JPanel details = new JPanel(new GridBagLayout());
-        details.setBackground(Color.WHITE);
+        details.setBackground(UIManager.getColor("Panel.background"));
         details.setAlignmentX(Component.CENTER_ALIGNMENT);
 
         GridBagConstraints gbc = new GridBagConstraints();
@@ -127,7 +127,7 @@ public class ProfilePage extends JPanel {
 
         nameField = new JTextField(22);
         nameField.setEditable(false);
-        nameField.setBackground(Color.WHITE);
+        nameField.setBackground(UIManager.getColor("Panel.background"));
         nameField.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(200, 200, 200)));
         nameField.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         gbc.gridx = 1;
@@ -147,7 +147,7 @@ public class ProfilePage extends JPanel {
 
         emailField = new JTextField(22);
         emailField.setEditable(false);
-        emailField.setBackground(Color.WHITE);
+        emailField.setBackground(UIManager.getColor("Panel.background"));
         emailField.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, new Color(200, 200, 200)));
         emailField.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         gbc.gridx = 1;
@@ -281,7 +281,6 @@ public class ProfilePage extends JPanel {
                 try {
                     JSONObject profile = get();
                     if (profile != null)
-                        System.out.println("applying");
                         applyProfile(profile);
                 } catch (Exception ex) {
                     ex.printStackTrace();
@@ -320,7 +319,6 @@ public class ProfilePage extends JPanel {
                         sb.append(line);
                     in.close();
                     try {
-                        System.out.println("Fetched user");
                         return new JSONObject(sb.toString());
                     } catch (Exception ex) {
                         System.out.println("Failed to parse profile JSON from " + ep + ": " + sb);
@@ -328,7 +326,7 @@ public class ProfilePage extends JPanel {
                 }
             } catch (Exception e) {
                 // try next endpoint
-                // e.printStackTrace();
+                 e.printStackTrace();
             }
         }
         return null;

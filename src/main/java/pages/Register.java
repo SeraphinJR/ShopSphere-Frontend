@@ -214,7 +214,6 @@ public class Register extends javax.swing.JFrame {
     public Register() {
         initComponents(); // NetBeans GUI code, DO NOT remove
 
-        System.out.println("Register constructor called!");
 
         setSize(1000, 700); // optional: enforce frame size
         setLocationRelativeTo(null); // center frame
@@ -294,9 +293,7 @@ public class Register extends javax.swing.JFrame {
     }// GEN-LAST:event_FirstNameActionPerformed
 
     private boolean registerCust(String firstName, String lastName, String email, String password, boolean isVendor) {
-        System.out.println("Inside registerCust");
-        System.out.println(
-                "First: " + firstName + ", Last: " + lastName + ", Email: " + email + ", Password: " + password);
+        
         try {
             URL url = new URL(
                     isVendor ? "http://localhost:8080/auth/register/vendor" : "http://localhost:8080/auth/register");
@@ -332,9 +329,7 @@ public class Register extends javax.swing.JFrame {
                     response.append(inputLine);
                 }
                 in.close();
-                System.out.println("Response: " + response);
             } else {
-                System.out.println("No response body from server");
             }
 
             return (responseCode == 200 || responseCode == 201);
@@ -351,10 +346,7 @@ public class Register extends javax.swing.JFrame {
         String email = Email.getText();
         String password = new String(Password.getPassword());
 
-        System.out.println("First Name: " + firstName);
-        System.out.println("Last Name: " + lastName);
-        System.out.println("Email: " + email);
-        System.out.println("Password: " + password);
+
 
         boolean success = registerCust(firstName, lastName, email, password, vendorToggle.isSelected());
         if (success) {

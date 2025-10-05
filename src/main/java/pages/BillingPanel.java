@@ -50,11 +50,11 @@ public class BillingPanel extends JPanel {
 
     private void initComponents() {
         setLayout(new BorderLayout());
-        setBackground(Color.WHITE);
+        setBackground(UIManager.getColor("Panel.background"));
 
         // Top bar
         JPanel top = new JPanel(new BorderLayout());
-        top.setBackground(new Color(245,245,245));
+        top.setBackground(UIManager.getColor("Panel.background"));
         JButton back = new JButton("Back to Cart");
         back.addActionListener(e -> parent.showPage("CART"));
         JLabel title = new JLabel("Checkout / Billing", SwingConstants.CENTER);
@@ -91,7 +91,7 @@ public class BillingPanel extends JPanel {
 
         // qr panel overlay (initially hidden)
         qrPanel = new JPanel(new BorderLayout());
-        qrPanel.setBackground(Color.WHITE);
+        qrPanel.setBackground(UIManager.getColor("Panel.background"));
         qrPanel.setBorder(BorderFactory.createTitledBorder("Scan QR to pay"));
         qrPanel.setPreferredSize(new Dimension(260, 260));
         qrPanel.setVisible(false);
@@ -140,7 +140,7 @@ public class BillingPanel extends JPanel {
         int rowHeight = Math.max(72, (int)(screenWidth * 0.060));
 
         JPanel row = new JPanel(new BorderLayout(12, 0));
-        row.setBackground(Color.WHITE);
+        row.setBackground(UIManager.getColor("Panel.background"));
         row.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(Color.LIGHT_GRAY),
                 BorderFactory.createEmptyBorder(8, 12, 8, 12)
@@ -153,11 +153,11 @@ public class BillingPanel extends JPanel {
         JPanel imgPanel = new JPanel(new BorderLayout());
         imgPanel.setPreferredSize(new Dimension(imgSize, imgSize));
         imgPanel.setMinimumSize(new Dimension(imgSize, imgSize));
-        imgPanel.setBackground(new Color(230, 230, 230));
+        imgPanel.setBackground(UIManager.getColor("Panel.background"));
 
         JPanel infoPanel = new JPanel();
         infoPanel.setLayout(new BoxLayout(infoPanel, BoxLayout.Y_AXIS));
-        infoPanel.setBackground(Color.WHITE);
+        infoPanel.setBackground(UIManager.getColor("Panel.background"));
 
         String pid = item.optString("productId", item.optString("id", "n/a"));
         int qty = item.optInt("quantity", 1);
@@ -290,7 +290,6 @@ public class BillingPanel extends JPanel {
 
             int rc=conn.getResponseCode();
             if (rc>=200&&rc<300){
-                System.out.print("Cleared");
             }
             else{
                 System.out.print("Error:"+rc);
@@ -308,7 +307,7 @@ public class BillingPanel extends JPanel {
 
         try {
             String encoded = URLEncoder.encode(imageField, StandardCharsets.UTF_8);
-            String imageUrl = "http://localhost:8080/uploads/" + encoded;
+            String imageUrl = "http://localhost:8080/uploads/" + imageField;
 
             imgLabel.setText("[loading...]");
 
@@ -351,7 +350,6 @@ public class BillingPanel extends JPanel {
         recalcTotalAsync();
 
         // clear flow state
-        System.out.println("Resetting BillingPanel, currentOrderId=" + currentOrderId);
 
         if (currentOrderId == null) {
             currentPaymentToken = null;
@@ -366,7 +364,6 @@ public class BillingPanel extends JPanel {
     
     public void setExistingOrderId(Long orderId) {
         this.currentOrderId = orderId;
-        System.out.println("BillingPanel: orderId set to " + orderId);
         SwingUtilities.invokeLater(() -> proceedButton.setEnabled(orderId!=null));
     }   
     
@@ -380,7 +377,6 @@ public class BillingPanel extends JPanel {
             try {
                 Long orderId = currentOrderId;
                 if (orderId == null) return;
-                System.out.println("OrderId=" + currentOrderId + ", Auth Token=" + AuthManager.Token);
                 URL payUrl = new URL("http://localhost:8080/payment/pay/" + orderId);
                 HttpURLConnection payConn = (HttpURLConnection) payUrl.openConnection();
                 payConn.setRequestMethod("POST");
