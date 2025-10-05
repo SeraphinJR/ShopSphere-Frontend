@@ -29,6 +29,10 @@ public class OrdersPanel extends JPanel {
         this.parent = parent;
         setLayout(new BorderLayout(8, 8));
         setBackground(Color.WHITE);
+        try {
+            Theme.styleComponentTree(this);
+        } catch (Throwable ignored) {
+        }
 
         // Top bar
         JPanel top = new JPanel(new BorderLayout());

@@ -53,6 +53,11 @@ public class MainFrame extends JFrame {
         navBar.add(forwardBtn);
         navBar.addSeparator();
         navBar.add(homeBtn);
+        // contact button
+        JButton contactBtn = new JButton("Contact");
+        contactBtn.setToolTipText("Contact support");
+        contactBtn.addActionListener(e -> showPage("CONTACT"));
+        navBar.add(contactBtn);
         navBar.addSeparator(new Dimension(12, 0));
         navBar.add(pageLabel);
 
@@ -62,7 +67,11 @@ public class MainFrame extends JFrame {
         pages.put("BILLING", new BillingPanel(this, cartModel));
         pages.put("ORDERS", new OrdersPanel(this));
         pages.put("PROFILE", new ProfilePage(this, cartModel));
-        pages.put("VENDOR", new VendorDashboard(this));
+        pages.put("CONTACT", new ContactPage(this));
+        // Add Vendor page only when the authenticated user is a vendor
+        if (AuthManager.IsVendor) {
+            pages.put("VENDOR", new VendorDashboard(this));
+        }
 
         for (Map.Entry<String, JPanel> e : pages.entrySet()) {
             cardPanel.add(e.getValue(), e.getKey());
@@ -75,8 +84,29 @@ public class MainFrame extends JFrame {
         // show home as initial page and record it in history
         showPage("HOME");
 
+        // Apply the theme styling across the component tree
+        try {
+            Theme.styleComponentTree(this);
+        } catch (Throwable ignored) {
+        }
+
         // keyboard shortcuts
         setupKeyBindings();
+    }
+
+    /**
+     * Ensure the vendor dashboard page is present in the card set when the client
+     * believes the user is a vendor. Safe to call multiple times.
+     */
+    public void ensureVendorPagePresent() {
+        if (AuthManager.IsVendor && !pages.containsKey("VENDOR")) {
+            JPanel v = new VendorDashboard(this);
+            pages.put("VENDOR", v);
+            cardPanel.add(v, "VENDOR");
+            // ensure page list shows updated navigation if currently on VENDOR
+            this.revalidate();
+            this.repaint();
+        }
     }
 
     /**
@@ -90,7 +120,8 @@ public class MainFrame extends JFrame {
 
         // trim forward history if needed
         if (historyIndex < history.size() - 1) {
-            while (history.size() - 1 > historyIndex) history.remove(history.size() - 1);
+            while (history.size() - 1 > historyIndex)
+                history.remove(history.size() - 1);
         }
         history.add(pageName);
         historyIndex = history.size() - 1;
@@ -102,7 +133,8 @@ public class MainFrame extends JFrame {
      * Display page without modifying history (used by back/forward).
      */
     private void displayPage(String pageName) {
-        if (!pages.containsKey(pageName)) return;
+        if (!pages.containsKey(pageName))
+            return;
         cardLayout.show(cardPanel, pageName);
         setPageTitle(pageName);
         updateNavButtons();
@@ -110,13 +142,25 @@ public class MainFrame extends JFrame {
 
     private void setPageTitle(String pageName) {
         switch (pageName) {
-            case "CART": pageLabel.setText("Cart"); break;
-            case "ORDERS": pageLabel.setText("Orders"); break;
-            case "PROFILE": pageLabel.setText("Profile"); break;
-            case "VENDOR": pageLabel.setText("Vendor Dashboard"); break;
-            case "BILLING": pageLabel.setText("Billing"); break;
+            case "CART":
+                pageLabel.setText("Cart");
+                break;
+            case "ORDERS":
+                pageLabel.setText("Orders");
+                break;
+            case "PROFILE":
+                pageLabel.setText("Profile");
+                break;
+            case "VENDOR":
+                pageLabel.setText("Vendor Dashboard");
+                break;
+            case "BILLING":
+                pageLabel.setText("Billing");
+                break;
             case "HOME":
-            default: pageLabel.setText("Home"); break;
+            default:
+                pageLabel.setText("Home");
+                break;
         }
     }
 
@@ -149,9 +193,17 @@ public class MainFrame extends JFrame {
         ActionMap am = root.getActionMap();
 
         im.put(KeyStroke.getKeyStroke("alt LEFT"), "goBack");
-        am.put("goBack", new AbstractAction() { public void actionPerformed(ActionEvent e) { goBack(); }});
+        am.put("goBack", new AbstractAction() {
+            public void actionPerformed(ActionEvent e) {
+                goBack();
+            }
+        });
         im.put(KeyStroke.getKeyStroke("alt RIGHT"), "goForward");
-        am.put("goForward", new AbstractAction() { public void actionPerformed(ActionEvent e) { goForward(); }});
+        am.put("goForward", new AbstractAction() {
+            public void actionPerformed(ActionEvent e) {
+                goForward();
+            }
+        });
 
         im.put(KeyStroke.getKeyStroke("BACK_SPACE"), "goBack");
 
@@ -166,7 +218,8 @@ public class MainFrame extends JFrame {
 
     /**
      * If Home page exists, call its refreshProducts() method to update quietly.
-     * HomePage must implement a public refreshProducts() method (see HomePage below).
+     * HomePage must implement a public refreshProducts() method (see HomePage
+     * below).
      */
     public void refreshHomeIfPresent() {
         JPanel home = pages.get("HOME");
@@ -181,15 +234,20 @@ public class MainFrame extends JFrame {
      */
     public void refreshPage(String pageName) {
         JPanel p = pages.get(pageName);
-        if (p == null) return;
-        if (p instanceof HomePage) ((HomePage) p).refreshProducts();
+        if (p == null)
+            return;
+        if (p instanceof HomePage)
+            ((HomePage) p).refreshProducts();
         // add other cases if necessary (e.g., ordersPanel.refreshOrders())
     }
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {
             // if you have Theme.applyDarkTheme(); keep it
-            try { Theme.applyDarkTheme(); } catch (Throwable ignored) {}
+            try {
+                Theme.applyDarkTheme();
+            } catch (Throwable ignored) {
+            }
             MainFrame frame = new MainFrame();
             frame.setVisible(true);
         });

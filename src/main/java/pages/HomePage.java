@@ -3,11 +3,7 @@ package pages;
 import javax.swing.*;
 import java.awt.*;
 
-import java.io.InputStreamReader;
-import java.io.InputStream;
-import java.io.BufferedReader;
-import java.net.HttpURLConnection;
-import java.net.URL;
+// networking handled via HttpUtil
 import org.json.JSONArray;
 import org.json.JSONObject;
 import javax.imageio.ImageIO;
@@ -22,6 +18,8 @@ import java.awt.event.MouseEvent;
  * NetBeans GUI Builder style JFrame with initComponents().
  */
 public class HomePage extends JPanel {
+
+    private static final java.util.logging.Logger logger = java.util.logging.Logger.getLogger(HomePage.class.getName());
 
     // Variables declaration - do not modify
     private javax.swing.JButton cartButton;
@@ -44,6 +42,11 @@ public class HomePage extends JPanel {
         this.cartModel = cartModel;
         this.parent = parent;
         initComponents();
+        // apply global theme styling to this page
+        try {
+            Theme.styleComponentTree(this);
+        } catch (Throwable ignored) {
+        }
         // Assuming you have a JScrollPane named scrollPaneProducts
         productScrollPane.getVerticalScrollBar().setUnitIncrement(20); // default is ~1-5, increase to speed up
         productScrollPane.getHorizontalScrollBar().setUnitIncrement(20); // optional if horizontal scroll
@@ -67,45 +70,40 @@ public class HomePage extends JPanel {
     // inside HomePage class, replace populateProducts() with:
 
     /**
- * Fetch full product list off the EDT and update UI on the EDT.
- * Replaces your previous populateProducts().
- */
-public void refreshProducts() {
-    // optional: show temporary UI state (disable search button, show spinner ...)
-    new Thread(() -> {
-        HttpURLConnection conn = null;
-        try {
-            URL url = new URL("http://localhost:8080/products");
-            conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setRequestProperty("Accept", "application/json");
-
-            int responseCode = conn.getResponseCode();
-            InputStream is = (responseCode >= 200 && responseCode < 300) ? conn.getInputStream() : conn.getErrorStream();
-            StringBuilder sb = new StringBuilder();
-            try (BufferedReader br = new BufferedReader(new InputStreamReader(is, "utf-8"))) {
-                String line;
-                while ((line = br.readLine()) != null) sb.append(line);
+     * Fetch full product list off the EDT and update UI on the EDT.
+     * Replaces your previous populateProducts().
+     */
+    public void refreshProducts() {
+        // optional: show temporary UI state (disable search button, show spinner ...)
+        new Thread(() -> {
+            int attempts = 0;
+            while (attempts < 2) {
+                try {
+                    attempts++;
+                    String body = HttpUtil.getString("http://localhost:8080/products",
+                            java.util.Map.of("Accept", "application/json"));
+                    org.json.JSONArray products = new org.json.JSONArray(body);
+                    SwingUtilities.invokeLater(() -> displayProducts(products));
+                    return; // success
+                } catch (Exception ex) {
+                    // on timeout or other transient failure, retry once
+                    logger.log(java.util.logging.Level.WARNING, "Failed to fetch products (attempt " + attempts + ")",
+                            ex);
+                    if (attempts >= 2) {
+                        final String msg = ex.getMessage() == null ? "Failed to fetch products" : ex.getMessage();
+                        SwingUtilities.invokeLater(
+                                () -> JOptionPane.showMessageDialog(this, "Error fetching products: " + msg));
+                    } else {
+                        try {
+                            Thread.sleep(400); // brief backoff
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                        }
+                    }
+                }
             }
-            String body = sb.toString();
-            if (responseCode >= 200 && responseCode < 300) {
-                JSONArray products = new JSONArray(body);
-                SwingUtilities.invokeLater(() -> displayProducts(products));
-            } else {
-                SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this,
-                        "Failed to load products: " + responseCode + "\n" + body));
-            }
-        } catch (Exception ex) {
-            ex.printStackTrace();
-            SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this,
-                    "Error fetching products: " + ex.getMessage()));
-        } finally {
-            if (conn != null) conn.disconnect();
-            // optional: re-enable controls here
-        }
-    }).start();
-}
-
+        }).start();
+    }
 
     // Updated createProductCard method to optionally load images from URL
     private JPanel createProductCard(String id, String name, String price, String imagePath, boolean isUrl) {
@@ -119,22 +117,28 @@ public void refreshProducts() {
         imageLabel.setVerticalAlignment(SwingConstants.CENTER);
         imageLabel.setPreferredSize(new Dimension(260, 160));
 
-        try {
-            Image img;
-            if (isUrl) {
-                img = ImageIO.read(new URL(imagePath));
-            } else {
-                img = ImageIO.read(new URL("http://localhost:8080/uploads/" + imagePath));
+        new Thread(() -> {
+            try {
+                byte[] bytes;
+                if (isUrl) {
+                    bytes = HttpUtil.getBytes(imagePath, null);
+                } else {
+                    bytes = HttpUtil.getBytes("http://localhost:8080/uploads/" + imagePath, null);
+                }
+                if (bytes != null && bytes.length > 0) {
+                    java.io.ByteArrayInputStream bis = new java.io.ByteArrayInputStream(bytes);
+                    Image img = ImageIO.read(bis);
+                    if (img != null) {
+                        Image scaled = img.getScaledInstance(240, 150, Image.SCALE_SMOOTH);
+                        SwingUtilities.invokeLater(() -> imageLabel.setIcon(new ImageIcon(scaled)));
+                        return;
+                    }
+                }
+                SwingUtilities.invokeLater(() -> imageLabel.setText("<no image>"));
+            } catch (Exception ex) {
+                SwingUtilities.invokeLater(() -> imageLabel.setText("<image error>"));
             }
-            if (img != null) {
-                Image scaled = img.getScaledInstance(240, 150, Image.SCALE_SMOOTH);
-                imageLabel.setIcon(new ImageIcon(scaled));
-            } else {
-                imageLabel.setText("<no image>");
-            }
-        } catch (Exception ex) {
-            imageLabel.setText("<image error>");
-        }
+        }).start();
 
         JPanel info = new JPanel(new BorderLayout());
         info.setBorder(BorderFactory.createEmptyBorder(6, 6, 6, 6));
@@ -153,49 +157,26 @@ public void refreshProducts() {
         JButton addBtn = new JButton("Add to cart");
         addBtn.setPreferredSize(new Dimension(120, 28));
         addBtn.addActionListener(e -> {
-            try {
-                URL url = new URL("http://localhost:8080/cart");
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-
-                conn.setRequestMethod("POST");
-                conn.setRequestProperty("Content-Type", "application/json");
-                conn.setRequestProperty("Authorization", "Bearer " + AuthManager.Token);
-                conn.setRequestProperty("Refresh-Token", AuthManager.Refresh);
-                conn.setDoOutput(true);
-
-                JSONObject requestBody = new JSONObject();
-                requestBody.put("productId", id);
-                requestBody.put("quantity", "1");
-
-                try (java.io.OutputStream os = conn.getOutputStream()) {
-                    byte[] input = requestBody.toString().getBytes("utf-8");
-                    os.write(input, 0, input.length);
+            new Thread(() -> {
+                try {
+                    org.json.JSONObject requestBody = new org.json.JSONObject();
+                    requestBody.put("productId", id);
+                    requestBody.put("quantity", 1);
+                    java.util.Map<String, String> headers = java.util.Map.of("Content-Type", "application/json",
+                            "Authorization", "Bearer " + AuthManager.Token, "Refresh-Token", AuthManager.Refresh);
+                    HttpUtil.postString("http://localhost:8080/cart", requestBody.toString(), headers);
+                    SwingUtilities.invokeLater(() -> {
+                        JOptionPane.showMessageDialog(HomePage.this, name + " added to cart.");
+                        org.json.JSONObject prod = new org.json.JSONObject();
+                        prod.put("productId", id);
+                        prod.put("quantity", 1);
+                        cartModel.addItem(prod);
+                    });
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                    SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage()));
                 }
-                int responseCode = conn.getResponseCode();
-                if (responseCode >= 200 && responseCode < 300) {
-                    JSONObject prod = new JSONObject();
-                    prod.put("productId", id);
-                    prod.put("quantity", 1);
-                    JOptionPane.showMessageDialog(HomePage.this, name + " added to cart.");
-                    cartModel.addItem(prod);
-                } else {
-                    BufferedReader br = new BufferedReader(new InputStreamReader(conn.getErrorStream()));
-                    StringBuilder errResp = new StringBuilder();
-                    String line;
-                    while ((line = br.readLine()) != null)
-                        errResp.append(line);
-                    br.close();
-
-                    JOptionPane.showMessageDialog(this, "Failed to add to cart: " + errResp);
-                }
-
-                conn.disconnect();
-
-            } catch (Exception err) {
-                err.printStackTrace();
-                JOptionPane.showMessageDialog(this, "Error: " + err.getMessage());
-
-            }
+            }).start();
         });
 
         info.add(topInfo, BorderLayout.NORTH);
@@ -223,64 +204,29 @@ public void refreshProducts() {
     private void searchProducts(java.awt.event.ActionEvent evt) {
         String query = searchField.getText().trim();
         try {
-            // Construct URL with query param
             String urlString = "http://localhost:8080/products";
             if (!query.isEmpty()) {
                 urlString += "?search=" + java.net.URLEncoder.encode(query, "UTF-8");
             }
-
-            URL url = new URL(urlString);
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setRequestProperty("Content-Type", "application/json");
-
-            int responseCode = conn.getResponseCode();
-            if (responseCode >= 200 && responseCode < 300) {
-                BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                String inputLine;
-                StringBuilder response = new StringBuilder();
-                while ((inputLine = in.readLine()) != null) {
-                    response.append(inputLine);
-                }
-                in.close();
-
-                // Parse JSON array and update products panel
-                JSONArray productsArray = new JSONArray(response.toString());
-                displayProducts(productsArray);
-            } else {
-                System.out.println("Failed to load products. Response code: " + responseCode);
-            }
+            String body = HttpUtil.getString(urlString, java.util.Map.of("Accept", "application/json"));
+            JSONArray productsArray = new JSONArray(body);
+            displayProducts(productsArray);
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.log(java.util.logging.Level.WARNING, "Product search failed", e);
+            JOptionPane.showMessageDialog(this, "Failed to load products: " + e.getMessage());
         }
     }
 
     private void clearSearch(java.awt.event.ActionEvent evt) {
         searchField.setText(""); // clear text
         try {
-            // reload all products (no query param)
-            URL url = new URL("http://localhost:8080/products");
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setRequestProperty("Content-Type", "application/json");
-
-            int responseCode = conn.getResponseCode();
-            if (responseCode >= 200 && responseCode < 300) {
-                BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                StringBuilder response = new StringBuilder();
-                String line;
-                while ((line = in.readLine()) != null) {
-                    response.append(line);
-                }
-                in.close();
-
-                JSONArray productsArray = new JSONArray(response.toString());
-                displayProducts(productsArray);
-            } else {
-                System.out.println("Failed to load products. Response code: " + responseCode);
-            }
+            String body = HttpUtil.getString("http://localhost:8080/products",
+                    java.util.Map.of("Accept", "application/json"));
+            JSONArray productsArray = new JSONArray(body);
+            displayProducts(productsArray);
         } catch (Exception e) {
-            e.printStackTrace();
+            logger.log(java.util.logging.Level.WARNING, "Failed to clear search/load products", e);
+            JOptionPane.showMessageDialog(this, "Failed to load products: " + e.getMessage());
         }
     }
 
@@ -305,7 +251,6 @@ public void refreshProducts() {
      * This method is called from within the constructor to initialize the form.
      * NetBeans GUI Builder style generated code - DO NOT modify the guarded blocks.
      */
-    @SuppressWarnings("unchecked")
     // <editor-fold defaultstate="collapsed" desc="Generated Code">
     private void initComponents() {
 
@@ -369,8 +314,11 @@ public void refreshProducts() {
         mainMenu.add(miOrders);
         mainMenu.add(miProfile);
         mainMenu.addSeparator();
-        mainMenu.add(miVendor);
-        mainMenu.addSeparator();
+        // Only include Vendor menu item if the client believes the user is a vendor
+        if (AuthManager.IsVendor) {
+            mainMenu.add(miVendor);
+            mainMenu.addSeparator();
+        }
         JMenuItem miLogout = new JMenuItem("Logout");
         miLogout.addActionListener(e -> {
             // clear tokens
@@ -465,10 +413,7 @@ public void refreshProducts() {
         JOptionPane.showMessageDialog(this, "Search: " + query);
     }
 
-    private void onCart(java.awt.event.ActionEvent evt) {
-        // TODO: open cart window or navigate to cart page
-        parent.showPage("CART");
-    }
+    // navigation helpers used by menu lambdas
 
     // ---------------------------------------------------------------------
 

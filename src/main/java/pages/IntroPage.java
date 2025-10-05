@@ -54,7 +54,7 @@ public class IntroPage extends JFrame {
             }
         };
         centerPanel.setLayout(null);
-        centerPanel.setBackground(new Color(250, 250, 250));
+        centerPanel.setBackground(new Color(0, 0, 0));
 
         add(centerPanel, BorderLayout.CENTER);
 
@@ -119,6 +119,10 @@ public class IntroPage extends JFrame {
         animTimer.start();
 
         setVisible(true);
+        try {
+            Theme.styleComponentTree(this.getContentPane());
+        } catch (Throwable ignored) {
+        }
     }
 
     // easing function: easeOutBack (overshoot)

@@ -4,14 +4,13 @@
  */
 package pages;
 
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.io.OutputStream;
-import java.io.InputStreamReader;
-import java.io.BufferedReader;
+import javax.swing.JDialog;
+import javax.swing.SwingUtilities;
+
+// networking moved to HttpUtil
 import javax.swing.JOptionPane;
 
-import org.json.JSONObject;
+// org.json used via fully-qualified names where needed
 
 /**
  * 
@@ -191,6 +190,11 @@ public class Login extends javax.swing.JFrame {
     public Login() {
         initComponents(); // NetBeans GUI code, DO NOT remove
 
+        try {
+            Theme.styleComponentTree(this.getContentPane());
+        } catch (Throwable ignored) {
+        }
+
         System.out.println("Register constructor called!");
 
         setSize(1000, 700); // optional: enforce frame size
@@ -208,54 +212,34 @@ public class Login extends javax.swing.JFrame {
         System.out.println("Inside Login");
         System.out.println("Email: " + email + ", Password: " + password);
         try {
-            URL url = new URL("http://localhost:8080/auth/login");
-            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestMethod("POST");
-            conn.setRequestProperty("Content-Type", "application/json");
-            conn.setDoOutput(true);
-
-            JSONObject json = new JSONObject();
-
+            org.json.JSONObject json = new org.json.JSONObject();
+            // include both email and username to be compatible with different backends
             json.put("email", email);
+            json.put("username", email);
             json.put("password", password);
-            try (OutputStream os = conn.getOutputStream()) {
-                os.write(json.toString().getBytes());
+            String respBody = HttpUtil.postString("http://localhost:8080/auth/login", json.toString(),
+                    java.util.Map.of("Content-Type", "application/json", "Accept", "application/json"));
+            org.json.JSONObject resp = new org.json.JSONObject(respBody);
+            if (resp.optString("status", "").equalsIgnoreCase("success") || resp.has("accessToken")) {
+                AuthManager.Token = resp.optString("accessToken", AuthManager.Token);
+                AuthManager.Refresh = resp.optString("refreshToken", AuthManager.Refresh);
+                final JDialog loading = new JDialog((java.awt.Frame) null, "Loading profile...", true);
+                loading.setSize(260, 80);
+                loading.setLocationRelativeTo(null);
+                loading.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
+                javax.swing.JLabel lbl = new javax.swing.JLabel("Loading profile...");
+                lbl.setBorder(javax.swing.BorderFactory.createEmptyBorder(12, 12, 12, 12));
+                loading.add(lbl);
+                AuthManager.refreshProfileAsync(() -> loading.dispose());
+                SwingUtilities.invokeLater(() -> loading.setVisible(true));
+                return true;
             }
-
-            int responseCode = conn.getResponseCode();
-            BufferedReader in = null;
-            InputStreamReader isr = null;
-
-            if (responseCode >= 200 && responseCode < 300) {
-                isr = new InputStreamReader(conn.getInputStream());
-            } else if (conn.getErrorStream() != null) {
-                isr = new InputStreamReader(conn.getErrorStream());
-            }
-
-            if (isr != null) {
-                in = new BufferedReader(isr);
-                String inputLine;
-                StringBuilder response = new StringBuilder();
-                while ((inputLine = in.readLine()) != null) {
-                    response.append(inputLine);
-                }
-                in.close();
-
-                JSONObject resp = new JSONObject(response.toString());
-                if ("success".equals(resp.getString("status"))) {
-                    AuthManager.Token = resp.getString("accessToken");
-                    AuthManager.Refresh = resp.getString("refreshToken");
-                    System.out.print("Token:" + AuthManager.Token);
-                    return (true);
-                }
-
-                System.out.println("Response: " + response);
-            } else {
-                System.out.println("No response body from server");
-            }
-
-            return (responseCode == 200 || responseCode == 201);
-
+            return false;
+        } catch (java.io.IOException ioe) {
+            // HttpUtil throws IOException on non-2xx responses; show the server message
+            ioe.printStackTrace();
+            SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, "Server error: " + ioe.getMessage()));
+            return false;
         } catch (Exception e) {
             e.printStackTrace();
             return false;
@@ -276,8 +260,10 @@ public class Login extends javax.swing.JFrame {
             MainFrame main = new MainFrame();
             main.setVisible(true);
             this.dispose();
-
-            // new HomePage().setVisible(true);
+            // refresh profile and ensure vendor page appears immediately
+            AuthManager.refreshProfileAsync(() -> {
+                main.ensureVendorPagePresent();
+            });
         } else {
             JOptionPane.showMessageDialog(this, "Invalid Username or Password");
         }

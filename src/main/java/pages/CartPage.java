@@ -5,9 +5,6 @@ import java.awt.*;
 import javax.imageio.ImageIO;
 import java.awt.Image;
 import java.io.*;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.util.*;
 import org.json.*;
 import model.CartModel;
 
@@ -21,26 +18,28 @@ public class CartPage extends JPanel {
     private javax.swing.JButton homeButton;
     private javax.swing.JLabel titleLabel;
     private javax.swing.JScrollPane itemsScrollPane;
-    private javax.swing.JPanel itemsPanel;              // panel that holds item cards
+    private javax.swing.JPanel itemsPanel; // panel that holds item cards
     private javax.swing.JPanel bottomPanel;
     private javax.swing.JLabel totalLabel;
     private javax.swing.JButton checkoutButton;
 
-    // Internal model: store items as JSONObject entries returned by backend
-    // each item expected to have at least: productId (int or string), name, price (number), image (string), quantity (int)
-    private java.util.List<JSONObject> cartItems = new ArrayList<>();
     private MainFrame parent;
     private final CartModel cartModel;
-    public CartPage(MainFrame parent,CartModel cartModel) {
-        this.parent=parent;
-        this.cartModel=cartModel;
+
+    public CartPage(MainFrame parent, CartModel cartModel) {
+        this.parent = parent;
+        this.cartModel = cartModel;
         initComponents();
-        
-        cartModel.addChangeListener(v->{
+        try {
+            Theme.styleComponentTree(this);
+        } catch (Throwable ignored) {
+        }
+
+        cartModel.addChangeListener(v -> {
             rebuildItemsUI();
             recalcTotal();
         });
-        
+
         setSize(900, 600);
 
         // speed up scroll
@@ -58,71 +57,48 @@ public class CartPage extends JPanel {
         // run networking off EDT
         new Thread(() -> {
             try {
-                URL url = new URL("http://localhost:8080/cart"); // adapt if needed
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("GET");
-                conn.setRequestProperty("Accept", "application/json");
-                String token = AuthManager.Token; // assume AuthManager exists
-                if (token != null && !token.isEmpty()) {
-                    conn.setRequestProperty("Authorization", "Bearer " + token);
-                    conn.setRequestProperty("Refresh-Token", AuthManager.Refresh);
+                java.util.Map<String, String> headers = new java.util.HashMap<>();
+                headers.put("Accept", "application/json");
+                if (AuthManager.Token != null && !AuthManager.Token.isEmpty()) {
+                    headers.put("Authorization", "Bearer " + AuthManager.Token);
+                    headers.put("Refresh-Token", AuthManager.Refresh);
                 }
-
-                int rc = conn.getResponseCode();
-                InputStream is = (rc >= 200 && rc < 300) ? conn.getInputStream() : conn.getErrorStream();
-                String resp = readStream(is);
-                conn.disconnect();
-
-                if (rc >= 200 && rc < 300) {
-                    // Expecting either JSON array or object that contains array
-                    JSONArray itemsArray;
-                    resp = resp.trim();
-                    if (resp.startsWith("[")) {
-                        itemsArray = new JSONArray(resp);
-                    } else {
-                        // maybe backend wraps it in { items: [...] }
-                        JSONObject wrap = new JSONObject(resp);
-                        if (wrap.has("items") && wrap.get("items") instanceof JSONArray) {
-                            itemsArray = wrap.getJSONArray("items");
-                        } else {
-                            // fallback: empty
-                            itemsArray = new JSONArray();
-                        }
-                    }
-
-                    cartModel.clear();
-                    for (int i = 0; i < itemsArray.length(); i++) {
-                        cartModel.addItem(itemsArray.getJSONObject(i));
-                    }
-
-                    SwingUtilities.invokeLater(() -> {
-                        rebuildItemsUI();
-                        recalcTotal();
-                    });
+                String resp = HttpUtil.getString("http://localhost:8080/cart", headers);
+                // HttpUtil throws on network error; treat returned body as successful payload
+                // Expecting either JSON array or object that contains array
+                org.json.JSONArray itemsArray;
+                resp = resp.trim();
+                if (resp.startsWith("[")) {
+                    itemsArray = new org.json.JSONArray(resp);
                 } else {
-                    SwingUtilities.invokeLater(() -> {
-                        JOptionPane.showMessageDialog(CartPage.this, "Failed to load cart: " + rc + "\n" );
-                    });
+                    org.json.JSONObject wrap = new org.json.JSONObject(resp);
+                    if (wrap.has("items") && wrap.get("items") instanceof org.json.JSONArray) {
+                        itemsArray = wrap.getJSONArray("items");
+                    } else {
+                        itemsArray = new org.json.JSONArray();
+                    }
                 }
+
+                cartModel.clear();
+                for (int i = 0; i < itemsArray.length(); i++) {
+                    cartModel.addItem(itemsArray.getJSONObject(i));
+                }
+
+                SwingUtilities.invokeLater(() -> {
+                    rebuildItemsUI();
+                    recalcTotal();
+                });
             } catch (Exception ex) {
                 ex.printStackTrace();
-                SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(CartPage.this, "Error loading cart: " + ex.getMessage()));
+                SwingUtilities.invokeLater(
+                        () -> JOptionPane.showMessageDialog(CartPage.this, "Error loading cart: " + ex.getMessage()));
             }
         }).start();
     }
 
-    // Read whole input stream into a String
-    private static String readStream(InputStream is) throws IOException {
-        if (is == null) return "";
-        try (BufferedReader br = new BufferedReader(new InputStreamReader(is, "utf-8"))) {
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while ((line = br.readLine()) != null) sb.append(line);
-            return sb.toString();
-        }
-    }
+    // (removed unused helper readStream)
 
-    // Rebuild the itemsPanel from cartItems
+    // Rebuild the itemsPanel from cartModel
     private void rebuildItemsUI() {
         itemsPanel.removeAll();
         itemsPanel.setLayout(new BoxLayout(itemsPanel, BoxLayout.Y_AXIS));
@@ -137,89 +113,67 @@ public class CartPage extends JPanel {
         itemsPanel.repaint();
     }
 
+    // Helper to get product id as string
+    private String getProductId(JSONObject item) {
+        if (item == null)
+            return null;
+        if (item.has("productId"))
+            return String.valueOf(item.get("productId"));
+        if (item.has("id"))
+            return String.valueOf(item.get("id"));
+        return null;
+    }
+
     // Create UI card for a single cart item JSONObject
     private JPanel makeCartItemCard(JSONObject item) {
         JPanel card = new JPanel(new BorderLayout(12, 0));
         card.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(Color.LIGHT_GRAY),
-                BorderFactory.createEmptyBorder(8,8,8,8)
-        ));
+                BorderFactory.createLineBorder(Color.DARK_GRAY),
+                BorderFactory.createEmptyBorder(8, 8, 8, 8)));
         card.setMaximumSize(new Dimension(Integer.MAX_VALUE, 120));
-        card.setBackground(Color.WHITE);
-        
+        card.setBackground(Color.BLACK);
+
         // Left: image
-        
-
-        // Center: name + unit price + small desc
-        JPanel center = new JPanel(new BorderLayout());
-        center.setOpaque(false);
-        JSONObject prod=null;
-        try{
-            URL url=new URL("http://localhost:8080/products/"+item.get("productId").toString());
-            HttpURLConnection conn= (HttpURLConnection)url.openConnection();
-            conn.setRequestMethod("GET");
-            conn.setRequestProperty("Accept","application/json");
-            conn.setRequestProperty("Authorization", "Bearer "+AuthManager.Token);
-            conn.setRequestProperty("Refresh-Token", AuthManager.Refresh);
-            
-            int rc=conn.getResponseCode();
-            if (rc>=200&&rc<300){
-                BufferedReader br=new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                StringBuilder resp=new StringBuilder();
-                String line;
-                while((line=br.readLine())!=null){resp.append(line);}
-                
-                br.close();
-                
-                prod=new JSONObject(resp.toString());
-                
-            
-            }
-            
-        }catch(Exception e){
-        System.out.print("Error:"+e);}
-
         JLabel imgLabel = new JLabel();
         imgLabel.setPreferredSize(new Dimension(120, 90));
         imgLabel.setHorizontalAlignment(SwingConstants.CENTER);
         imgLabel.setVerticalAlignment(SwingConstants.CENTER);
-        String imageField = prod.optString("image", "");
-        // try HTTP first, then resource fallback
+        String imageField = item.has("image") ? item.optString("image", "") : "";
         if (imageField != null && !imageField.isEmpty()) {
-            String imageUrl = imageField.startsWith("http") ? imageField : "http://localhost:8080/uploads/" + imageField;
-
+            String imageUrl = imageField.startsWith("http") ? imageField
+                    : "http://localhost:8080/uploads/" + imageField;
             new Thread(() -> {
                 try {
-                    Image img = ImageIO.read(new URL(imageUrl));
-                    if (img != null) {
-                        Image scaled = img.getScaledInstance(110, 90, Image.SCALE_SMOOTH);
-                        SwingUtilities.invokeLater(() -> imgLabel.setText("") // remove placeholder
-                                );
-                        SwingUtilities.invokeLater(() -> imgLabel.setIcon(new ImageIcon(scaled)));
-                    } else {
-                        SwingUtilities.invokeLater(() -> imgLabel.setText("[no image1]"));
+                    byte[] imgBytes = HttpUtil.getBytes(imageUrl, null);
+                    if (imgBytes != null && imgBytes.length > 0) {
+                        java.io.ByteArrayInputStream bis = new java.io.ByteArrayInputStream(imgBytes);
+                        Image img = ImageIO.read(bis);
+                        if (img != null) {
+                            Image scaled = img.getScaledInstance(110, 90, Image.SCALE_SMOOTH);
+                            SwingUtilities.invokeLater(() -> imgLabel.setIcon(new ImageIcon(scaled)));
+                            return;
+                        }
                     }
                 } catch (Exception ex) {
-                    SwingUtilities.invokeLater(() -> imgLabel.setText("[no image2]"));
+                    // ignore image load failure
                 }
             }).start();
         } else {
-            imgLabel.setText("[no image3]");
+            imgLabel.setText("[no image]");
         }
 
-
         card.add(imgLabel, BorderLayout.WEST);
-        
-        String name = prod!=null?prod.getString("name"):"Unknown";
+
+        // Center: name + price
+        JPanel center = new JPanel(new BorderLayout());
+        center.setOpaque(false);
+        String name = item.has("name") ? item.optString("name", "Loading...") : "Loading...";
         JLabel nameLabel = new JLabel(name);
         nameLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
-
-        double unitPrice = prod!=null?prod.getDouble("price"):0.0000;
-        JLabel priceLabel = new JLabel(String.format("Unit price: $ %.2f", unitPrice)); // currency symbol optional
-
+        double unitPrice = item.has("price") ? item.optDouble("price", 0.0) : 0.0;
+        JLabel priceLabel = new JLabel(String.format("Unit price: $ %.2f", unitPrice));
         center.add(nameLabel, BorderLayout.NORTH);
         center.add(priceLabel, BorderLayout.CENTER);
-
         card.add(center, BorderLayout.CENTER);
 
         // Right: quantity controls + line total + remove
@@ -227,40 +181,33 @@ public class CartPage extends JPanel {
         right.setLayout(new BoxLayout(right, BoxLayout.Y_AXIS));
         right.setOpaque(false);
 
-        // quantity panel (label + spinner)
         JPanel qtyPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 6, 0));
         qtyPanel.setOpaque(false);
         qtyPanel.add(new JLabel("Qty:"));
-
         int qty = item.optInt("quantity", 1);
         SpinnerNumberModel model = new SpinnerNumberModel(qty, 1, 1000, 1);
         JSpinner spinner = new JSpinner(model);
         ((JSpinner.DefaultEditor) spinner.getEditor()).getTextField().setColumns(2);
         qtyPanel.add(spinner);
 
-        // line total label
         double lineTotal = unitPrice * qty;
         JLabel lineTotalLabel = new JLabel(String.format("$ %.2f", lineTotal));
         lineTotalLabel.setFont(new Font("Segoe UI", Font.BOLD, 13));
 
-        // remove button
         JButton removeBtn = new JButton("Remove");
-        removeBtn.setMargin(new Insets(3,8,3,8));
+        removeBtn.setMargin(new Insets(3, 8, 3, 8));
 
-        // spinner change -> call update API
         spinner.addChangeListener(evt -> {
             int newQty = (Integer) spinner.getValue();
-            // update local UI immediate
-            lineTotalLabel.setText(String.format("$ %.2f", unitPrice * newQty));
+            double curPrice = item.has("price") ? item.optDouble("price", 0.0) : 0.0;
+            lineTotalLabel.setText(String.format("$ %.2f", curPrice * newQty));
             recalcTotal();
-
-            // call backend to update
             updateCartQuantityAsync(item, newQty);
         });
 
-        // remove button action
         removeBtn.addActionListener(ae -> {
-            int confirm = JOptionPane.showConfirmDialog(CartPage.this, "Remove " + name + " from cart?", "Confirm", JOptionPane.YES_NO_OPTION);
+            int confirm = JOptionPane.showConfirmDialog(CartPage.this, "Remove " + name + " from cart?", "Confirm",
+                    JOptionPane.YES_NO_OPTION);
             if (confirm == JOptionPane.YES_OPTION) {
                 removeCartItemAsync(item);
             }
@@ -275,6 +222,61 @@ public class CartPage extends JPanel {
 
         card.add(right, BorderLayout.EAST);
 
+        // If product details missing, fetch asynchronously and update UI
+        if (!item.has("name") || !item.has("price")) {
+            new Thread(() -> {
+                try {
+                    String pid = getProductId(item);
+                    if (pid != null) {
+                        try {
+                            String pbody = HttpUtil.getString("http://localhost:8080/products/" + pid,
+                                    java.util.Map.of());
+                            org.json.JSONObject prod = new org.json.JSONObject(pbody);
+                            if (prod.has("price"))
+                                item.put("price", prod.getDouble("price"));
+                            if (prod.has("name"))
+                                item.put("name", prod.getString("name"));
+                            if (prod.has("image"))
+                                item.put("image", prod.getString("image"));
+                            SwingUtilities.invokeLater(() -> {
+                                nameLabel.setText(item.optString("name", "Unknown"));
+                                priceLabel.setText(String.format("Unit price: $ %.2f", item.optDouble("price", 0.0)));
+                                String img = item.optString("image", "");
+                                if (img != null && !img.isEmpty()) {
+                                    String imageUrl = img.startsWith("http") ? img
+                                            : "http://localhost:8080/uploads/" + img;
+                                    try {
+                                        byte[] imgBytes = HttpUtil.getBytes(imageUrl, null);
+                                        if (imgBytes != null && imgBytes.length > 0) {
+                                            java.io.ByteArrayInputStream bis = new java.io.ByteArrayInputStream(
+                                                    imgBytes);
+                                            Image imgObj = ImageIO.read(bis);
+                                            if (imgObj != null) {
+                                                Image scaled = imgObj.getScaledInstance(110, 90, Image.SCALE_SMOOTH);
+                                                SwingUtilities
+                                                        .invokeLater(() -> imgLabel.setIcon(new ImageIcon(scaled)));
+                                            }
+                                        }
+                                    } catch (Exception ex) {
+                                        // ignore image load failure
+                                    }
+                                }
+                                int currentQty = spinner.getValue() instanceof Integer ? (Integer) spinner.getValue()
+                                        : item.optInt("quantity", 1);
+                                lineTotalLabel
+                                        .setText(String.format("$ %.2f", item.optDouble("price", 0.0) * currentQty));
+                                recalcTotal();
+                            });
+                        } catch (Exception ex) {
+                            // ignore fetch errors
+                        }
+                    }
+                } catch (Exception ex) {
+                    // ignore fetch errors
+                }
+            }).start();
+        }
+
         return card;
     }
 
@@ -282,84 +284,45 @@ public class CartPage extends JPanel {
     private void recalcTotal() {
         double tot = 0.0;
         for (JSONObject item : cartModel.getItems()) {
-            JSONObject prod=null;
-            try{
-                URL url=new URL("http://localhost:8080/products/"+item.get("productId").toString());
-                HttpURLConnection conn= (HttpURLConnection)url.openConnection();
-                conn.setRequestMethod("GET");
-                conn.setRequestProperty("Accept","application/json");
-                conn.setRequestProperty("Authorization", "Bearer "+AuthManager.Token);
-                conn.setRequestProperty("Refresh-Token", AuthManager.Refresh);
-
-                int rc=conn.getResponseCode();
-                if (rc>=200&&rc<300){
-                    BufferedReader br=new BufferedReader(new InputStreamReader(conn.getInputStream()));
-                    StringBuilder resp=new StringBuilder();
-                    String line;
-                    while((line=br.readLine())!=null){resp.append(line);}
-
-                    br.close();
-
-                    prod=new JSONObject(resp.toString());
-
-
-                }
-
-            }catch(Exception e){
-            System.out.print("Error:"+e);}
-            double unitPrice = prod.getDouble("price");
-            int qty = item.getInt("quantity");
-            tot += unitPrice * qty;
+            double price = item.has("price") ? item.optDouble("price", Double.NaN) : Double.NaN;
+            int qty = item.optInt("quantity", 1);
+            if (!Double.isNaN(price)) {
+                tot += price * qty;
+            }
         }
         totalLabel.setText(String.format("Total: $ %.2f", tot));
     }
 
-    // Async update quantity to backend
+    // Async update quantity on server
     private void updateCartQuantityAsync(JSONObject item, int newQty) {
         new Thread(() -> {
             try {
-                URL url = new URL("http://localhost:8080/cart"); // adapt endpoint
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("PUT");
-                conn.setRequestProperty("Content-Type", "application/json");
-                String token = AuthManager.Token;
-                if (token != null && !token.isEmpty()) {
-                    conn.setRequestProperty("Authorization", "Bearer " + token);
-                    conn.setRequestProperty("Refresh-Token", AuthManager.Refresh);
-                }
-                conn.setDoOutput(true);
-
-                JSONObject body = new JSONObject();
-                // include identifiers your backend expects:
-                // here we prefer productId if present
-                if (item.has("productId")) body.put("productId", item.get("productId"));
-                else if (item.has("id")) body.put("productId", item.get("id"));
+                org.json.JSONObject body = new org.json.JSONObject();
+                String pid = getProductId(item);
+                if (pid != null)
+                    body.put("productId", pid);
                 body.put("quantity", newQty);
-
-                try (OutputStream os = conn.getOutputStream()) {
-                    os.write(body.toString().getBytes("utf-8"));
+                java.util.Map<String, String> headers = new java.util.HashMap<>();
+                headers.put("Content-Type", "application/json");
+                if (AuthManager.Token != null && !AuthManager.Token.isEmpty()) {
+                    headers.put("Authorization", "Bearer " + AuthManager.Token);
+                    headers.put("Refresh-Token", AuthManager.Refresh);
                 }
-
-                int rc = conn.getResponseCode();
-                String resp = readStream((rc >= 200 && rc < 300) ? conn.getInputStream() : conn.getErrorStream());
-                conn.disconnect();
-
-                if (rc >= 200 && rc < 300) {
-                    // update local model quantity
+                try {
+                    HttpUtil.postString("http://localhost:8080/cart", body.toString(), headers);
+                    // assume success if no exception
                     item.put("quantity", newQty);
+                    SwingUtilities.invokeLater(this::recalcTotal);
+                } catch (Exception ex) {
                     SwingUtilities.invokeLater(() -> {
-                        recalcTotal();
-                    });
-                } else {
-                    SwingUtilities.invokeLater(() -> {
-                        JOptionPane.showMessageDialog(CartPage.this, "Failed to update quantity: " + resp);
-                        // Optionally reload cart from server to sync state
+                        JOptionPane.showMessageDialog(CartPage.this, "Failed to update quantity: " + ex.getMessage());
                         loadCartFromServer();
                     });
                 }
             } catch (Exception ex) {
                 ex.printStackTrace();
-                SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(CartPage.this, "Error updating quantity: " + ex.getMessage()));
+                SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(CartPage.this,
+                        "Error updating quantity: " + ex.getMessage()));
                 // reload to ensure consistency
                 loadCartFromServer();
             }
@@ -370,43 +333,37 @@ public class CartPage extends JPanel {
     private void removeCartItemAsync(JSONObject item) {
         new Thread(() -> {
             try {
-                URL url = new URL("http://localhost:8080/cart/"+item.getInt("productId")); // adapt endpoint
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("DELETE");
-                conn.setRequestProperty("Accept", "application/json");
-                String token = AuthManager.Token;
-                if (token != null && !token.isEmpty()) {
-                    conn.setRequestProperty("Authorization", "Bearer " + token);
-                    conn.setRequestProperty("Refresh-Token", AuthManager.Refresh);
+                String pid = getProductId(item);
+                java.util.Map<String, String> headers = new java.util.HashMap<>();
+                if (AuthManager.Token != null && !AuthManager.Token.isEmpty()) {
+                    headers.put("Authorization", "Bearer " + AuthManager.Token);
+                    headers.put("Refresh-Token", AuthManager.Refresh);
                 }
-                conn.setDoOutput(true);
-
-                JSONObject body = new JSONObject();
-                if (item.has("productId")) body.put("productId", item.get("productId"));
-                else if (item.has("id")) body.put("productId", item.get("id"));
-
-                try (OutputStream os = conn.getOutputStream()) {
-                    os.write(body.toString().getBytes("utf-8"));
-                }
-
-                int rc = conn.getResponseCode();
-                String resp = readStream((rc >= 200 && rc < 300) ? conn.getInputStream() : conn.getErrorStream());
-                conn.disconnect();
-
-                if (rc >= 200 && rc < 300) {
-                    // remove locally and refresh UI
+                try {
+                    if (pid != null) {
+                        HttpUtil.delete("http://localhost:8080/cart/" + pid, null, headers);
+                    } else {
+                        org.json.JSONObject body = new org.json.JSONObject();
+                        if (item.has("productId"))
+                            body.put("productId", item.get("productId"));
+                        else if (item.has("id"))
+                            body.put("productId", item.get("id"));
+                        HttpUtil.delete("http://localhost:8080/cart", body.toString(), headers);
+                    }
                     cartModel.removeItem(item);
                     SwingUtilities.invokeLater(() -> {
                         rebuildItemsUI();
                         recalcTotal();
                     });
-                } else {
-                    SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(CartPage.this, "Failed to remove item: " + rc));
+                } catch (Exception ex) {
+                    SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(CartPage.this,
+                            "Failed to remove item: " + ex.getMessage()));
                 }
 
             } catch (Exception ex) {
                 ex.printStackTrace();
-                SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(CartPage.this, "Error removing item: " + ex.getMessage()));
+                SwingUtilities.invokeLater(
+                        () -> JOptionPane.showMessageDialog(CartPage.this, "Error removing item: " + ex.getMessage()));
             }
         }).start();
     }
@@ -415,42 +372,28 @@ public class CartPage extends JPanel {
     private void checkoutAsync() {
         new Thread(() -> {
             try {
-                URL url = new URL("http://localhost:8080/cart/checkout"); // adapt endpoint
-                HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-                conn.setRequestMethod("POST");
-                conn.setRequestProperty("Content-Type", "application/json");
-                String token = AuthManager.Token;
-                if (token != null && !token.isEmpty()){
-                    conn.setRequestProperty("Authorization", "Bearer " + token);
-                    conn.setRequestProperty("Refresh-Token",AuthManager.Refresh);
+                java.util.Map<String, String> headers = new java.util.HashMap<>();
+                headers.put("Content-Type", "application/json");
+                if (AuthManager.Token != null && !AuthManager.Token.isEmpty()) {
+                    headers.put("Authorization", "Bearer " + AuthManager.Token);
+                    headers.put("Refresh-Token", AuthManager.Refresh);
                 }
-                conn.setDoOutput(true);
-
-                // Could pass cart summary if needed; many servers use token to identify cart
-                JSONObject body = new JSONObject();
-
-                try (OutputStream os = conn.getOutputStream()) {
-                    os.write(body.toString().getBytes("utf-8"));
-                }
-
-                int rc = conn.getResponseCode();
-                String resp = readStream((rc >= 200 && rc < 300) ? conn.getInputStream() : conn.getErrorStream());
-                conn.disconnect();
-
-                if (rc >= 200 && rc < 300) {
+                try {
+                    HttpUtil.postString("http://localhost:8080/cart/checkout", "{}", headers);
                     SwingUtilities.invokeLater(() -> {
                         JOptionPane.showMessageDialog(CartPage.this, "Checkout successful!");
-                        // optionally clear UI and reload cart
                         cartModel.clear();
                         rebuildItemsUI();
                         recalcTotal();
                     });
-                } else {
-                    SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(CartPage.this, "Checkout failed: " + resp));
+                } catch (Exception ex) {
+                    SwingUtilities.invokeLater(
+                            () -> JOptionPane.showMessageDialog(CartPage.this, "Checkout failed: " + ex.getMessage()));
                 }
             } catch (Exception ex) {
                 ex.printStackTrace();
-                SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(CartPage.this, "Error during checkout: " + ex.getMessage()));
+                SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(CartPage.this,
+                        "Error during checkout: " + ex.getMessage()));
             }
         }).start();
     }
@@ -479,7 +422,7 @@ public class CartPage extends JPanel {
         homeButton.setFont(new java.awt.Font("Segoe UI", 0, 14));
         homeButton.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
-                // open HomePage and dispose this
+                // open HomePage
                 parent.showPage("HOME");
             }
         });
@@ -490,21 +433,21 @@ public class CartPage extends JPanel {
         javax.swing.GroupLayout topPanelLayout = new javax.swing.GroupLayout(topPanel);
         topPanel.setLayout(topPanelLayout);
         topPanelLayout.setHorizontalGroup(
-            topPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                .addGroup(topPanelLayout.createSequentialGroup()
-                    .addComponent(homeButton, javax.swing.GroupLayout.PREFERRED_SIZE, 100, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addGap(12, 12, 12)
-                    .addComponent(titleLabel)
-                    .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE))
-        );
+                topPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                        .addGroup(topPanelLayout.createSequentialGroup()
+                                .addComponent(homeButton, javax.swing.GroupLayout.PREFERRED_SIZE, 100,
+                                        javax.swing.GroupLayout.PREFERRED_SIZE)
+                                .addGap(12, 12, 12)
+                                .addComponent(titleLabel)
+                                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)));
         topPanelLayout.setVerticalGroup(
-            topPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                .addGroup(topPanelLayout.createSequentialGroup()
-                    .addGroup(topPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                        .addComponent(homeButton, javax.swing.GroupLayout.PREFERRED_SIZE, 34, javax.swing.GroupLayout.PREFERRED_SIZE)
-                        .addComponent(titleLabel))
-                    .addGap(0, 6, Short.MAX_VALUE))
-        );
+                topPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                        .addGroup(topPanelLayout.createSequentialGroup()
+                                .addGroup(topPanelLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                                        .addComponent(homeButton, javax.swing.GroupLayout.PREFERRED_SIZE, 34,
+                                                javax.swing.GroupLayout.PREFERRED_SIZE)
+                                        .addComponent(titleLabel))
+                                .addGap(0, 6, Short.MAX_VALUE)));
 
         // itemsPanel (inside scroll pane)
         itemsPanel.setLayout(new BoxLayout(itemsPanel, BoxLayout.Y_AXIS));
@@ -523,8 +466,9 @@ public class CartPage extends JPanel {
         checkoutButton.setFont(new java.awt.Font("Segoe UI", 0, 14));
         checkoutButton.addActionListener(new java.awt.event.ActionListener() {
             public void actionPerformed(java.awt.event.ActionEvent evt) {
-                // confirm then call checkout
-                int confirm = JOptionPane.showConfirmDialog(CartPage.this, "Proceed to checkout?", "Checkout", JOptionPane.YES_NO_OPTION);
+                // confirm then go to billing page
+                int confirm = JOptionPane.showConfirmDialog(CartPage.this, "Proceed to checkout?", "Checkout",
+                        JOptionPane.YES_NO_OPTION);
                 if (confirm == JOptionPane.YES_OPTION) {
                     parent.showPage("BILLING");
                 }
@@ -534,47 +478,47 @@ public class CartPage extends JPanel {
         javax.swing.GroupLayout bottomLayout = new javax.swing.GroupLayout(bottomPanel);
         bottomPanel.setLayout(bottomLayout);
         bottomLayout.setHorizontalGroup(
-            bottomLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, bottomLayout.createSequentialGroup()
-                    .addComponent(totalLabel)
-                    .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 300, Short.MAX_VALUE)
-                    .addComponent(checkoutButton, javax.swing.GroupLayout.PREFERRED_SIZE, 140, javax.swing.GroupLayout.PREFERRED_SIZE))
-        );
+                bottomLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                        .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, bottomLayout.createSequentialGroup()
+                                .addComponent(totalLabel)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED, 300,
+                                        Short.MAX_VALUE)
+                                .addComponent(checkoutButton, javax.swing.GroupLayout.PREFERRED_SIZE, 140,
+                                        javax.swing.GroupLayout.PREFERRED_SIZE)));
         bottomLayout.setVerticalGroup(
-            bottomLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, bottomLayout.createSequentialGroup()
-                    .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                    .addGroup(bottomLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
-                        .addComponent(totalLabel)
-                        .addComponent(checkoutButton, javax.swing.GroupLayout.PREFERRED_SIZE, 36, javax.swing.GroupLayout.PREFERRED_SIZE))
-                    .addContainerGap())
-        );
+                bottomLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                        .addGroup(javax.swing.GroupLayout.Alignment.TRAILING, bottomLayout.createSequentialGroup()
+                                .addContainerGap(javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                                .addGroup(bottomLayout.createParallelGroup(javax.swing.GroupLayout.Alignment.BASELINE)
+                                        .addComponent(totalLabel)
+                                        .addComponent(checkoutButton, javax.swing.GroupLayout.PREFERRED_SIZE, 36,
+                                                javax.swing.GroupLayout.PREFERRED_SIZE))
+                                .addContainerGap()));
 
         // Main frame layout
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(this);
         this.setLayout(layout);
         layout.setHorizontalGroup(
-            layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                .addComponent(topPanel, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-                .addComponent(itemsScrollPane)
-                .addComponent(bottomPanel, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
-        );
+                layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                        .addComponent(topPanel, javax.swing.GroupLayout.DEFAULT_SIZE,
+                                javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE)
+                        .addComponent(itemsScrollPane)
+                        .addComponent(bottomPanel, javax.swing.GroupLayout.DEFAULT_SIZE,
+                                javax.swing.GroupLayout.DEFAULT_SIZE, Short.MAX_VALUE));
         layout.setVerticalGroup(
-            layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                .addGroup(layout.createSequentialGroup()
-                    .addComponent(topPanel, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
-                    .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                    .addComponent(itemsScrollPane, javax.swing.GroupLayout.DEFAULT_SIZE, 420, Short.MAX_VALUE)
-                    .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
-                    .addComponent(bottomPanel, javax.swing.GroupLayout.PREFERRED_SIZE, javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE))
-        );
+                layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                        .addGroup(layout.createSequentialGroup()
+                                .addComponent(topPanel, javax.swing.GroupLayout.PREFERRED_SIZE,
+                                        javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addComponent(itemsScrollPane, javax.swing.GroupLayout.DEFAULT_SIZE, 420,
+                                        Short.MAX_VALUE)
+                                .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED)
+                                .addComponent(bottomPanel, javax.swing.GroupLayout.PREFERRED_SIZE,
+                                        javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)));
 
         this.revalidate();
         this.repaint();
     }
-    
-    
 
- 
-    // ------------------- End of class -------------------
 }
