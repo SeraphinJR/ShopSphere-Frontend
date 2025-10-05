@@ -12,6 +12,7 @@ import org.json.JSONArray;
 import org.json.JSONObject;
 import javax.imageio.ImageIO;
 import java.awt.Image;
+import java.net.URI;
 import model.CartModel;
 import java.awt.Cursor;
 import java.awt.event.MouseAdapter;
@@ -127,12 +128,12 @@ public void refreshProducts() {
         try {
             Image img;
             if (isUrl) {
-                img = ImageIO.read(new URL(imagePath));
+                img = ImageIO.read(URI.create(imagePath).toURL());
             } else {
                 String encoded = URLEncoder.encode(imagePath, StandardCharsets.UTF_8);
                 String imageUrl = "http://localhost:8080/uploads/" + encoded;
 
-                img = ImageIO.read(new URL(imageUrl));
+                img = ImageIO.read(URI.create(imageUrl).toURL());
             }
             if (img != null) {
                 Image scaled = img.getScaledInstance(240, 150, Image.SCALE_SMOOTH);
@@ -162,7 +163,7 @@ public void refreshProducts() {
         addBtn.setPreferredSize(new Dimension(120, 28));
         addBtn.addActionListener(e -> {
             try {
-                URL url = new URL("http://localhost:8080/cart");
+                URL url = URI.create("http://localhost:8080/cart").toURL();
                 HttpURLConnection conn = (HttpURLConnection) url.openConnection();
 
                 conn.setRequestMethod("POST");
@@ -237,7 +238,7 @@ public void refreshProducts() {
                 urlString += "?search=" + java.net.URLEncoder.encode(query, "UTF-8");
             }
 
-            URL url = new URL(urlString);
+            URL url = URI.create(urlString).toURL();
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
             conn.setRequestMethod("GET");
             conn.setRequestProperty("Content-Type", "application/json");
@@ -310,10 +311,18 @@ public void refreshProducts() {
     }
 
     private void checkVendorAndOpen() {
+        checkRoleAndOpenPage("VENDOR", "Please sign in first. Go to your Profile to upgrade to Vendor.");
+    }
+
+    private void checkAdminAndOpen() {
+        checkRoleAndOpenPage("ADMIN", "Please sign in with an admin account.");
+    }
+
+    private void checkRoleAndOpenPage(String targetPage, String notSignedInMessage) {
         // quick not-signed-in shortcut
         if (AuthManager.Token == null || AuthManager.Token.trim().isEmpty()) {
             JOptionPane.showMessageDialog(this,
-                "Please sign in first. Go to your Profile to upgrade to Vendor.",
+                notSignedInMessage,
                 "Not signed in",
                 JOptionPane.INFORMATION_MESSAGE);
             return;
@@ -325,10 +334,10 @@ public void refreshProducts() {
 
         new Thread(() -> {
             HttpURLConnection conn = null;
-            boolean isVendor = false;
             String errorMsg = null;
+            final boolean[] allowed = {false};
             try {
-                URL url = new URL("http://localhost:8080/auth/current/");
+                URL url = URI.create("http://localhost:8080/auth/current/").toURL();
                 conn = (HttpURLConnection) url.openConnection();
                 conn.setRequestMethod("GET");
                 conn.setRequestProperty("Accept", "application/json");
@@ -370,7 +379,28 @@ public void refreshProducts() {
                     for (String part : s.split("\\s*,\\s*")) roles.add(part.toUpperCase());
                 }
 
-                isVendor = roles.contains("VENDOR") || roles.contains("ROLE_VENDOR") || roles.contains("ADMIN") || roles.contains("ROLE_ADMIN");
+                // Process the role information from the response
+                Set<String> userRoles = new HashSet<>();
+                if (roleObj instanceof JSONArray) {
+                    JSONArray rolesArray = (JSONArray) roleObj;
+                    for (int i = 0; i < rolesArray.length(); i++) {
+                        userRoles.add(String.valueOf(rolesArray.get(i)).toUpperCase());
+                    }
+                } else if (roleObj instanceof String) {
+                    String roleStr = ((String) roleObj).trim();
+                    if (roleStr.contains(",")) {
+                        for (String part : roleStr.split("\\s*,\\s*")) {
+                            userRoles.add(part.toUpperCase());
+                        }
+                    } else {
+                        userRoles.add(roleStr.toUpperCase());
+                    }
+                }
+
+                // Check permissions based on the target page
+                final boolean isAdmin = userRoles.contains("ADMIN") || userRoles.contains("ROLE_ADMIN");
+                final boolean isVendor = userRoles.contains("VENDOR") || userRoles.contains("ROLE_VENDOR");
+                allowed[0] = isAdmin || ("VENDOR".equals(targetPage) && isVendor);
 
             } catch (Exception ex) {
                 ex.printStackTrace();
@@ -379,14 +409,14 @@ public void refreshProducts() {
                 if (conn != null) conn.disconnect();
             }
 
-            final boolean allowed = isVendor;
+
             final String err = errorMsg;
             SwingUtilities.invokeLater(() -> {
                 setCursor(old);
-                if (allowed) {
-                    parent.showPage("VENDOR");
+                if (allowed[0]) {
+                    parent.showPage(targetPage);
                 } else {
-                    String msg = "Upgrade to vendor through your profile.";
+                    String msg = "ADMIN".equals(targetPage) ? "Admin access required." : "Upgrade to vendor through your profile.";
                     if (err != null && !err.isEmpty()) {
                         msg += "\n\n(Notice: couldn't verify role: " + err + ")";
                     }
@@ -412,7 +442,7 @@ public void refreshProducts() {
      * This method is called from within the constructor to initialize the form.
      * NetBeans GUI Builder style generated code - DO NOT modify the guarded blocks.
      */
-    @SuppressWarnings("unchecked")
+
     // <editor-fold defaultstate="collapsed" desc="Generated Code">
     private void initComponents() {
 
@@ -463,14 +493,15 @@ public void refreshProducts() {
         mainMenu = new JPopupMenu();
         JMenuItem miCart = new JMenuItem("Cart");
         JMenuItem miOrders = new JMenuItem("Orders");
-
         JMenuItem miProfile = new JMenuItem("Profile");
         JMenuItem miVendor = new JMenuItem("Vendor Dashboard");
+        JMenuItem miAdmin = new JMenuItem("Admin Panel");
 
         miCart.addActionListener(e -> parent.showPage("CART"));
         miOrders.addActionListener(e -> parent.showPage("ORDERS"));
         miProfile.addActionListener(e -> parent.showPage("PROFILE"));
         miVendor.addActionListener(e -> checkVendorAndOpen());
+        miAdmin.addActionListener(e -> checkAdminAndOpen());
 
 
         mainMenu.add(miCart);
@@ -478,6 +509,7 @@ public void refreshProducts() {
         mainMenu.add(miProfile);
         mainMenu.addSeparator();
         mainMenu.add(miVendor);
+        mainMenu.add(miAdmin);
         mainMenu.addSeparator();
         JMenuItem miLogout = new JMenuItem("Logout");
         miLogout.addActionListener(e -> {
@@ -497,6 +529,8 @@ public void refreshProducts() {
         mainMenu.add(miLogout);
 
         cartButton.addActionListener(e -> {
+            // Check roles before showing menu
+            checkRolesAndUpdateMenu(miVendor, miAdmin);
             // show the popup menu aligned to the button
             mainMenu.show(cartButton, 0, cartButton.getHeight());
         });
@@ -573,10 +607,74 @@ public void refreshProducts() {
         JOptionPane.showMessageDialog(this, "Search: " + query);
     }
 
-    private void onCart(java.awt.event.ActionEvent evt) {
-        // TODO: open cart window or navigate to cart page
-        parent.showPage("CART");
+    private void checkRolesAndUpdateMenu(JMenuItem vendorItem, JMenuItem adminItem) {
+        if (AuthManager.Token == null || AuthManager.Token.trim().isEmpty()) {
+            vendorItem.setVisible(false);
+            adminItem.setVisible(false);
+            return;
+        }
+
+        try {
+            URL url = URI.create("http://localhost:8080/auth/current/").toURL();
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setRequestProperty("Accept", "application/json");
+            conn.setRequestProperty("Authorization", "Bearer " + AuthManager.Token);
+            conn.setRequestProperty("Refresh-Token", AuthManager.Refresh);
+            conn.setConnectTimeout(2000);
+            conn.setReadTimeout(2000);
+
+            int rc = conn.getResponseCode();
+            if (rc >= 200 && rc < 300) {
+                String body = readStream(conn.getInputStream());
+                JSONObject root = new JSONObject(body);
+
+                Object roleObj = null;
+                if (root.has("role")) roleObj = root.get("role");
+                else if (root.has("roles")) roleObj = root.get("roles");
+                else if (root.has("data") && root.get("data") instanceof JSONObject) {
+                    JSONObject data = root.getJSONObject("data");
+                    if (data.has("role")) roleObj = data.get("role");
+                    else if (data.has("roles")) roleObj = data.get("roles");
+                }
+
+                Set<String> roles = new HashSet<>();
+                if (roleObj instanceof JSONArray) {
+                    JSONArray a = (JSONArray) roleObj;
+                    for (int i = 0; i < a.length(); i++) {
+                        roles.add(String.valueOf(a.get(i)).toUpperCase());
+                    }
+                } else if (roleObj instanceof String) {
+                    String s = ((String) roleObj).trim().toUpperCase();
+                    if (s.contains(",")) {
+                        for (String part : s.split("\\s*,\\s*")) {
+                            roles.add(part);
+                        }
+                    } else {
+                        roles.add(s);
+                    }
+                }
+
+                boolean isAdmin = roles.contains("ADMIN") || roles.contains("ROLE_ADMIN");
+                boolean isVendor = roles.contains("VENDOR") || roles.contains("ROLE_VENDOR");
+
+                vendorItem.setVisible(isAdmin || isVendor);
+                adminItem.setVisible(isAdmin);
+            } else {
+                // On error, hide both items
+                vendorItem.setVisible(false);
+                adminItem.setVisible(false);
+            }
+
+            conn.disconnect();
+        } catch (Exception ex) {
+            // On error, hide both items
+            vendorItem.setVisible(false);
+            adminItem.setVisible(false);
+        }
     }
+
+
 
     // ---------------------------------------------------------------------
 

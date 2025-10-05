@@ -63,14 +63,14 @@ public class MainFrame extends JFrame {
         navBar.addSeparator(new Dimension(12, 0));
         navBar.add(pageLabel);
 
-        // create pages once and add to cardPanel (but DO NOT instantiate VENDOR yet)
+        // create pages once and add to cardPanel (but DO NOT instantiate VENDOR or ADMIN yet)
         putPage("HOME", new HomePage(this, cartModel));
         putPage("CART", new CartPage(this, cartModel));
         putPage("BILLING", new BillingPanel(this, cartModel));
         ordersPanel = new OrdersPanel(this);
         putPage("ORDERS", ordersPanel);
         putPage("PROFILE", new ProfilePage(this, cartModel));
-        // NOTE: do NOT create VendorDashboard here.
+        // NOTE: do NOT create VendorDashboard or AdminPanel here as they require role checks.
 
         setLayout(new BorderLayout());
         add(navBar, BorderLayout.NORTH);
@@ -94,7 +94,7 @@ public class MainFrame extends JFrame {
      * Lazily creates vendor page if requested.
      */
     public void showPage(String pageName) {
-        // lazy-create vendor page only when requested
+        // lazy-create vendor and admin pages only when requested
         if ("VENDOR".equals(pageName) && !pages.containsKey("VENDOR")) {
             // create vendor dashboard lazily - don't do any server checks here,
             // HomePage should only call showPage("VENDOR") if the user is allowed.
@@ -105,6 +105,19 @@ public class MainFrame extends JFrame {
                 // if creation fails, show error and don't add to history
                 t.printStackTrace();
                 JOptionPane.showMessageDialog(this, "Failed to open Vendor Dashboard:\n" + t.getMessage(),
+                        "Error", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+        } else if ("ADMIN".equals(pageName) && !pages.containsKey("ADMIN")) {
+            // create admin panel lazily - don't do any server checks here,
+            // HomePage should only call showPage("ADMIN") if the user is allowed.
+            try {
+                AdminPanel admin = new AdminPanel(this);
+                putPage("ADMIN", admin);
+            } catch (Throwable t) {
+                // if creation fails, show error and don't add to history
+                t.printStackTrace();
+                JOptionPane.showMessageDialog(this, "Failed to open Admin Panel:\n" + t.getMessage(),
                         "Error", JOptionPane.ERROR_MESSAGE);
                 return;
             }
@@ -144,6 +157,7 @@ public class MainFrame extends JFrame {
                 break;}
             case "PROFILE": pageLabel.setText("Profile"); break;
             case "VENDOR": pageLabel.setText("Vendor Dashboard"); break;
+            case "ADMIN": pageLabel.setText("Admin Panel"); break;
             case "BILLING":{
                 pageLabel.setText("Billing");
                 if ("BILLING".equals(pageName)) {
