@@ -416,44 +416,123 @@ public class VendorDashboard extends JPanel {
         private final JTextField reviewCountField = new JTextField(6);
         private final JTextArea descArea = new JTextArea(4, 30);
         private final JTextField featuresField = new JTextField(30); // comma separated
-
+        private final JButton uploadImageBtn = new JButton("Upload Image");
+        
         ProductFormPanel(JSONObject product) {
-            setLayout(new BorderLayout(6,6));
-            JPanel fields = new JPanel(new GridBagLayout());
-            fields.setOpaque(false);
-            GridBagConstraints gbc = new GridBagConstraints();
-            gbc.insets = new Insets(4,4,4,4);
-            gbc.anchor = GridBagConstraints.WEST;
-            gbc.fill = GridBagConstraints.HORIZONTAL;
+    setLayout(new BorderLayout(6,6));
+    JPanel fields = new JPanel(new GridBagLayout());
+    fields.setOpaque(false);
+    GridBagConstraints gbc = new GridBagConstraints();
+    gbc.insets = new Insets(4,4,4,4);
+    gbc.anchor = GridBagConstraints.WEST;
+    gbc.fill = GridBagConstraints.HORIZONTAL;
 
-            int y = 0;
-            addField(fields, gbc, y++, "Name", nameField);
-            addField(fields, gbc, y++, "Price", priceField);
-            addField(fields, gbc, y++, "Original Price", originalPriceField);
-            addField(fields, gbc, y++, "Category", categoryField);
-            addField(fields, gbc, y++, "Image (url or filename)", imageField);
-            addField(fields, gbc, y++, "Rating", ratingField);
-            addField(fields, gbc, y++, "Review Count", reviewCountField);
-            addField(fields, gbc, y++, "Features (comma-separated)", featuresField);
+    int y = 0;
+    addField(fields, gbc, y++, "Name", nameField);
+    addField(fields, gbc, y++, "Price", priceField);
+    addField(fields, gbc, y++, "Original Price", originalPriceField);
+    addField(fields, gbc, y++, "Category", categoryField);
+    
+    // Image field + upload button
+    gbc.gridx = 0; gbc.gridy = y; gbc.gridwidth = 1; gbc.weightx = 0;
+    fields.add(new JLabel("Image (url or filename):"), gbc);
+    gbc.gridx = 1; gbc.weightx = 1;
+    JPanel imgPanel = new JPanel(new BorderLayout(4,0));
+    imgPanel.add(imageField, BorderLayout.CENTER);
+    imgPanel.add(uploadImageBtn, BorderLayout.EAST);
+    fields.add(imgPanel, gbc);
+    y++;
 
-            gbc.gridx = 0; gbc.gridy = y++; gbc.gridwidth = 2;
-            descArea.setLineWrap(true);
-            descArea.setWrapStyleWord(true);
-            fields.add(new JLabel("Description"), gbc);
-            gbc.gridy = y++;
-            gbc.weightx = 1; gbc.weighty = 0.2;
-            fields.add(new JScrollPane(descArea,
-                    JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
-                    JScrollPane.HORIZONTAL_SCROLLBAR_NEVER), gbc);
+    // ... rest of fields
+    addField(fields, gbc, y++, "Rating", ratingField);
+    addField(fields, gbc, y++, "Review Count", reviewCountField);
+    addField(fields, gbc, y++, "Features (comma-separated)", featuresField);
 
-            gbc.gridy = y++; gbc.gridwidth = 2; gbc.weighty = 0;
-            fields.add(inStockBox, gbc);
+    gbc.gridx = 0; gbc.gridy = y++; gbc.gridwidth = 2;
+    descArea.setLineWrap(true);
+    descArea.setWrapStyleWord(true);
+    fields.add(new JLabel("Description"), gbc);
+    gbc.gridy = y++;
+    gbc.weightx = 1; gbc.weighty = 0.2;
+    fields.add(new JScrollPane(descArea,
+            JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
+            JScrollPane.HORIZONTAL_SCROLLBAR_NEVER), gbc);
 
-            add(fields, BorderLayout.CENTER);
+    gbc.gridy = y++; gbc.gridwidth = 2; gbc.weighty = 0;
+    fields.add(inStockBox, gbc);
 
-            if (product != null) populate(product);
+    add(fields, BorderLayout.CENTER);
+
+    if (product != null) populate(product);
+
+    // Wire upload button
+    uploadImageBtn.addActionListener(e -> onUploadImage());
+}   
+        
+        private void onUploadImage() {
+    JFileChooser chooser = new JFileChooser();
+    int ret = chooser.showOpenDialog(this);
+    if (ret != JFileChooser.APPROVE_OPTION) return;
+    File file = chooser.getSelectedFile();
+    uploadImageBtn.setEnabled(false);
+
+    new Thread(() -> {
+        try {
+            String uploadedFileName = multipartUpload("http://localhost:8080/vendor/upload", file);
+            if (uploadedFileName != null && !uploadedFileName.isEmpty()) {
+                SwingUtilities.invokeLater(() -> imageField.setText(uploadedFileName));
+                JOptionPane.showMessageDialog(this, "Image uploaded successfully");
+            } else {
+                SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, "Failed to upload image"));
+            }
+        } catch (Exception ex) {
+            SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, "Error: " + ex.getMessage()));
+        } finally {
+            SwingUtilities.invokeLater(() -> uploadImageBtn.setEnabled(true));
         }
+    }).start();
+}
 
+        private String multipartUpload(String urlStr, File file) throws IOException {
+    String boundary = "----VendorDashboardBoundary" + System.currentTimeMillis();
+    HttpURLConnection conn = (HttpURLConnection) new URL(urlStr).openConnection();
+    conn.setDoOutput(true);
+    conn.setRequestMethod("POST");
+    conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=" + boundary);
+    if (AuthManager.Token != null && !AuthManager.Token.isEmpty())
+        conn.setRequestProperty("Authorization", "Bearer " + AuthManager.Token);
+
+    try (OutputStream out = conn.getOutputStream();
+         PrintWriter writer = new PrintWriter(new OutputStreamWriter(out, "UTF-8"), true)) {
+
+        // File part
+        writer.append("--").append(boundary).append("\r\n");
+        writer.append("Content-Disposition: form-data; name=\"file\"; filename=\"").append(file.getName()).append("\"\r\n");
+        writer.append("Content-Type: ").append(URLConnection.guessContentTypeFromName(file.getName())).append("\r\n\r\n");
+        writer.flush();
+        try (FileInputStream fis = new FileInputStream(file)) {
+            byte[] buffer = new byte[4096];
+            int read;
+            while ((read = fis.read(buffer)) != -1) out.write(buffer, 0, read);
+            out.flush();
+        }
+        writer.append("\r\n").flush();
+        writer.append("--").append(boundary).append("--").append("\r\n").flush();
+    }
+
+    int rc = conn.getResponseCode();
+    String resp = readStream(rc >= 200 && rc < 300 ? conn.getInputStream() : conn.getErrorStream());
+    conn.disconnect();
+
+    // assume backend returns JSON with { "filename": "uploads/xyz.jpg" }
+    try {
+        JSONObject obj = new JSONObject(resp);
+        return obj.optString("filename", null);
+    } catch (Exception e) {
+        return null;
+    }
+}
+        
         private void addField(JPanel panel, GridBagConstraints gbc, int row, String label, JComponent field) {
             gbc.gridx = 0; gbc.gridy = row; gbc.gridwidth = 1; gbc.weightx = 0;
             panel.add(new JLabel(label + ":"), gbc);
@@ -534,6 +613,13 @@ public class VendorDashboard extends JPanel {
         }
     }
 
+    
+
+    
+    
+
+    
+    
     // ---------- utilities ----------
     private static String readStream(InputStream is) throws IOException {
         if (is == null) return "";
