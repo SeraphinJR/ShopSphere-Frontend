@@ -130,8 +130,7 @@ public void refreshProducts() {
             if (isUrl) {
                 img = ImageIO.read(URI.create(imagePath).toURL());
             } else {
-                String encoded = URLEncoder.encode(imagePath, StandardCharsets.UTF_8);
-                String imageUrl = "http://localhost:8080/uploads/" + encoded;
+                String imageUrl = "http://localhost:8080/uploads/" + imagePath;
 
                 img = ImageIO.read(URI.create(imageUrl).toURL());
             }
@@ -257,7 +256,6 @@ public void refreshProducts() {
                 JSONArray productsArray = new JSONArray(response.toString());
                 displayProducts(productsArray);
             } else {
-                System.out.println("Failed to load products. Response code: " + responseCode);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -286,7 +284,6 @@ public void refreshProducts() {
                 JSONArray productsArray = new JSONArray(response.toString());
                 displayProducts(productsArray);
             } else {
-                System.out.println("Failed to load products. Response code: " + responseCode);
             }
         } catch (Exception e) {
             e.printStackTrace();
@@ -454,11 +451,11 @@ public void refreshProducts() {
         productScrollPane = new javax.swing.JScrollPane();
         productPanel = new javax.swing.JPanel();
 
-        setBackground(new java.awt.Color(250, 250, 250));
+        setBackground(UIManager.getColor("Panel.background"));
         setPreferredSize(new java.awt.Dimension(1000, 600));
 
         // Top panel (search + cart)
-        topPanel.setBackground(new java.awt.Color(245, 245, 245));
+        topPanel.setBackground(UIManager.getColor("Panel.background"));
         topPanel.setBorder(BorderFactory.createEmptyBorder(8, 12, 8, 12));
 
         searchField.setFont(new java.awt.Font("Segoe UI", 0, 14)); // NOI18N
@@ -575,7 +572,7 @@ public void refreshProducts() {
         // Product panel inside scroll pane
         productPanel.setLayout(new java.awt.GridLayout(0, 3, 16, 16)); // 3 columns, variable rows
         productPanel.setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
-        productPanel.setBackground(new java.awt.Color(255, 255, 255));
+        productPanel.setBackground(UIManager.getColor("Panel.background"));
 
         productScrollPane.setViewportView(productPanel);
 

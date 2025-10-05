@@ -28,11 +28,11 @@ public class VendorDashboard extends JPanel {
     public VendorDashboard(MainFrame parent) {
         this.parent = parent;
         setLayout(new BorderLayout(8,8));
-        setBackground(Color.WHITE);
+        setBackground(UIManager.getColor("Panel.background"));
 
         // Top bar
         JPanel top = new JPanel(new BorderLayout());
-        top.setBackground(new Color(245,245,245));
+        top.setBackground(UIManager.getColor("Panel.background"));
         top.setBorder(BorderFactory.createEmptyBorder(8,12,8,12));
         JLabel title = new JLabel("Vendor Dashboard");
         title.setFont(new Font("Segoe UI", Font.BOLD, 18));
@@ -49,7 +49,7 @@ public class VendorDashboard extends JPanel {
 
         // center: products area (flow layout so cards wrap)
         productsPanel = new JPanel(new WrapLayout(FlowLayout.LEFT, 12, 12));
-        productsPanel.setBackground(Color.WHITE);
+        productsPanel.setBackground(UIManager.getColor("Panel.background"));
         productsPanel.setBorder(BorderFactory.createEmptyBorder(12,12,12,12));
         scroll = new JScrollPane(productsPanel);
         scroll.setBorder(null);
@@ -58,7 +58,7 @@ public class VendorDashboard extends JPanel {
 
         // bottom status
         JPanel bottom = new JPanel(new BorderLayout());
-        bottom.setBackground(new Color(245,245,245));
+        bottom.setBackground(UIManager.getColor("Panel.background"));
         bottom.setBorder(BorderFactory.createEmptyBorder(8,12,8,12));
         statusLabel = new JLabel(" ");
         bottom.add(statusLabel, BorderLayout.WEST);
@@ -144,7 +144,7 @@ public class VendorDashboard extends JPanel {
                 BorderFactory.createLineBorder(new Color(200,200,200)),
                 BorderFactory.createEmptyBorder(8,8,8,8)
         ));
-        card.setBackground(Color.WHITE);
+        card.setBackground(UIManager.getColor("Panel.background"));
 
         long id = p.optLong("id", -1);
         String idText = id > 0 ? String.valueOf(id) : p.optString("id", "?");
@@ -157,7 +157,7 @@ public class VendorDashboard extends JPanel {
         JLabel thumb = new JLabel("Img", SwingConstants.CENTER);
         thumb.setPreferredSize(new Dimension(100, 90));
         thumb.setOpaque(true);
-        thumb.setBackground(new Color(245,245,245));
+        thumb.setBackground(UIManager.getColor("Panel.background"));
         thumb.setBorder(BorderFactory.createLineBorder(new Color(220,220,220)));
         thumb.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         loadImageAsync(thumb, imageField, 100, 90);
@@ -213,7 +213,7 @@ public class VendorDashboard extends JPanel {
             return;
         }
         String encoded = URLEncoder.encode(imageField, StandardCharsets.UTF_8);
-        String imageUrl = "http://localhost:8080/uploads/" + encoded;
+        String imageUrl = "http://localhost:8080/uploads/" + imageField;
 
         target.setText("[loading]");
         new Thread(() -> {
@@ -303,7 +303,6 @@ public class VendorDashboard extends JPanel {
                 }
                 int rc = conn.getResponseCode();
                 String resp = rc >= 200 && rc < 300 ? readStream(conn.getInputStream()) : readStream(conn.getErrorStream());
-                System.out.println("[ADD] rc=" + rc + " resp=" + resp);
                 if (rc >= 200 && rc < 300) {
                     setStatus("Product added.");
                     // Refresh home (so storefront reflects new product) and then the dashboard
@@ -348,7 +347,6 @@ public class VendorDashboard extends JPanel {
                 }
                 int rc = conn.getResponseCode();
                 String resp = rc >= 200 && rc < 300 ? readStream(conn.getInputStream()) : readStream(conn.getErrorStream());
-                System.out.println("[EDIT] rc=" + rc + " resp=" + resp);
                 if (rc >= 200 && rc < 300) {
                     setStatus("Product updated.");
                     parent.refreshHomeIfPresent();
@@ -387,7 +385,6 @@ public class VendorDashboard extends JPanel {
                 }
                 int rc = conn.getResponseCode();
                 String resp = rc >= 200 && rc < 300 ? readStream(conn.getInputStream()) : readStream(conn.getErrorStream());
-                System.out.println("[DELETE] rc=" + rc + " resp=" + resp);
                 if (rc >= 200 && rc < 300) {
                     setStatus("Product deleted.");
                     parent.refreshHomeIfPresent();

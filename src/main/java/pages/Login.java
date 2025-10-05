@@ -191,7 +191,6 @@ public class Login extends javax.swing.JFrame {
     public Login() {
         initComponents(); // NetBeans GUI code, DO NOT remove
 
-        System.out.println("Register constructor called!");
 
         setSize(1000, 700); // optional: enforce frame size
         setLocationRelativeTo(null); // center frame
@@ -205,8 +204,6 @@ public class Login extends javax.swing.JFrame {
     }
 
     private boolean loginUser(String email, String password) {
-        System.out.println("Inside Login");
-        System.out.println("Email: " + email + ", Password: " + password);
         try {
             URL url = new URL("http://localhost:8080/auth/login");
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -245,13 +242,10 @@ public class Login extends javax.swing.JFrame {
                 if ("success".equals(resp.getString("status"))) {
                     AuthManager.Token = resp.getString("accessToken");
                     AuthManager.Refresh = resp.getString("refreshToken");
-                    System.out.print("Token:" + AuthManager.Token);
                     return (true);
                 }
 
-                System.out.println("Response: " + response);
             } else {
-                System.out.println("No response body from server");
             }
 
             return (responseCode == 200 || responseCode == 201);
@@ -267,8 +261,6 @@ public class Login extends javax.swing.JFrame {
         String email = Email.getText();
         String password = new String(Password.getPassword());
 
-        System.out.println("Email: " + email);
-        System.out.println("Password: " + password);
 
         boolean success = loginUser(email, password);
         if (success) {

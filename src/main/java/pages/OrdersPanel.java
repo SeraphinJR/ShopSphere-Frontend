@@ -28,11 +28,11 @@ public class OrdersPanel extends JPanel {
     public OrdersPanel(MainFrame parent) {
         this.parent = parent;
         setLayout(new BorderLayout(10, 10));
-setBackground(new Color(245, 248, 250)); // light neutral bg
+setBackground(UIManager.getColor("Panel.background")); // light neutral bg
 
 // 🔹 Top bar
 JPanel top = new JPanel(new BorderLayout());
-top.setBackground(new Color(30, 144, 255)); // Dodger blue bar
+top.setBackground(UIManager.getColor("Panel.background")); // Dodger blue bar
 top.setBorder(BorderFactory.createEmptyBorder(10, 15, 10, 15));
 
 JLabel title = new JLabel("🛒 Your Orders");
@@ -45,17 +45,17 @@ add(top, BorderLayout.NORTH);
 // 🔹 Orders list area
 listPanel = new JPanel();
 listPanel.setLayout(new BoxLayout(listPanel, BoxLayout.Y_AXIS));
-listPanel.setBackground(Color.WHITE);
+listPanel.setBackground(UIManager.getColor("Panel.background"));
 
 JScrollPane scrollPane = new JScrollPane(listPanel);
 scrollPane.setBorder(BorderFactory.createEmptyBorder());
 scrollPane.getVerticalScrollBar().setUnitIncrement(16);
-scrollPane.getViewport().setBackground(new Color(245, 248, 250));
+scrollPane.getViewport().setBackground(UIManager.getColor("Panel.background"));
 add(scrollPane, BorderLayout.CENTER);
 
 // 🔹 Bottom status bar
 JPanel bottom = new JPanel(new BorderLayout());
-bottom.setBackground(new Color(240, 240, 240));
+bottom.setBackground(UIManager.getColor("Panel.background"));
 bottom.setBorder(BorderFactory.createEmptyBorder(6, 15, 6, 15));
 
 statusLabel = new JLabel(" ");
@@ -76,10 +76,8 @@ add(bottom, BorderLayout.SOUTH);
     }
 
     private void loadOrdersAsync() {
-        System.out.println("OrdersPanel: loadOrdersAsync called!");
     setStatus("Loading orders...");
     new Thread(() -> {
-        System.out.println("start...");
         HttpURLConnection conn = null;
         try {
             URL url = new URL("http://localhost:8080/orders/");
@@ -93,17 +91,14 @@ add(bottom, BorderLayout.SOUTH);
             }
 
             int rc = vconn.getResponseCode();
-            System.out.println("Orders HTTP code: " + rc);
 
 
             InputStream is = (rc >= 200 && rc < 300) ? vconn.getInputStream() : vconn.getErrorStream();
             String body = readStream(is);
-            System.out.println("Body: " + body);
             vconn.disconnect();
 
             final int statusCode = rc;
             final String respBody = body == null ? "" : body.trim();
-            System.out.println("[Orders] rc=" + statusCode + " body=" + (respBody.length() > 200 ? respBody.substring(0,200) + "..." : respBody));
 
             if (statusCode >= 200 && statusCode < 300) {
                 // Try to parse either an array or a wrapped object containing an array
@@ -124,13 +119,11 @@ add(bottom, BorderLayout.SOUTH);
                             // maybe the response is a single object representing one order -> wrap it
                             // but safer: create empty and show a warning
                             ordersArray = new JSONArray();
-                            System.err.println("[Orders] Unexpected JSON shape: " + o.toString());
                         }
                     }
                 } catch (Exception pe) {
                     // parsing error
                     SwingUtilities.invokeLater(() -> {
-                        System.err.println("rc:"+rc+" body: "+respBody);
                         JOptionPane.showMessageDialog(this,
                             "Failed to parse orders JSON.\nResponse code: " + statusCode + "\nBody: " + respBody,
                             "Parse error", JOptionPane.ERROR_MESSAGE);
@@ -165,7 +158,6 @@ add(bottom, BorderLayout.SOUTH);
                 // non-2xx
                 setStatus("Failed to load orders: " + statusCode);
                 final String diag = "Failed to load orders: HTTP " + statusCode + "\nResponse: " + respBody;
-                System.err.println("[Orders] " + diag);
                 SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(this, diag, "Load error", JOptionPane.ERROR_MESSAGE));
             }
         } catch (Exception ex) {
@@ -185,7 +177,7 @@ add(bottom, BorderLayout.SOUTH);
      */
     private JPanel makeOrderCard(JSONObject order) {
         JPanel card = new JPanel(new BorderLayout(8, 8));
-        card.setBackground(Color.WHITE);
+        card.setBackground(UIManager.getColor("Panel.background"));
         card.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(new Color(220, 220, 220)),
                 BorderFactory.createEmptyBorder(10, 12, 10, 12)));
